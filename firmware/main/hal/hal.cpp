@@ -33,7 +33,6 @@ void Hal::init()
     ESP_ERROR_CHECK(ret);
 
     xiaozhi_board_init();
-    visualAttentionInit();
     onboardingInit();
     waterMonitorInit();
     xiaozhi_mcp_init();

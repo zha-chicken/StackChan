@@ -76,12 +76,6 @@ void set_xiaozhi_mode(bool mode)
     _data.isXiaozhiMode = mode;
 }
 
-void invoke_xiaozhi_wake_word(std::string_view wake_word)
-{
-    auto& app = Application::GetInstance();
-    app.WakeWordInvoke(std::string(wake_word));
-}
-
 /* -------------------------------------------------------------------------- */
 /*                                   Display                                  */
 /* -------------------------------------------------------------------------- */

@@ -5,8 +5,6 @@
 #include <unistd.h>
 #include <errno.h>
 #include <esp_heap_caps.h>
-#include <algorithm>
-#include <cmath>
 #include <cstdio>
 #include <cstring>
 
@@ -101,83 +99,6 @@ static void log_available_video_devices()
 #else
 #define CAM_PRINT_FOURCC(pixelformat) (void)0;
 #endif  // CONFIG_XIAOZHI_ENABLE_CAMERA_DEBUG_MODE
-
-static bool read_luma_pixel(const uint8_t* data, size_t len, int width, int height, v4l2_pix_fmt_t format, int x, int y,
-                            uint8_t& luma)
-{
-    if (data == nullptr || width <= 0 || height <= 0 || x < 0 || y < 0 || x >= width || y >= height) {
-        return false;
-    }
-
-    const size_t pixel_index = static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x);
-    switch (format) {
-        case V4L2_PIX_FMT_YUYV:
-        case V4L2_PIX_FMT_YUV422P: {
-            const size_t pair_index = pixel_index & ~static_cast<size_t>(1);
-            const size_t offset     = pair_index * 2 + ((pixel_index & 1) ? 2 : 0);
-            if (offset >= len) {
-                return false;
-            }
-            luma = data[offset];
-            return true;
-        }
-        case V4L2_PIX_FMT_GREY:
-        case V4L2_PIX_FMT_YUV420:
-            if (pixel_index >= len) {
-                return false;
-            }
-            luma = data[pixel_index];
-            return true;
-        case V4L2_PIX_FMT_RGB565:
-        case V4L2_PIX_FMT_RGB565X: {
-            const size_t offset = pixel_index * 2;
-            if (offset + 1 >= len) {
-                return false;
-            }
-            uint16_t rgb = static_cast<uint16_t>(data[offset]) | (static_cast<uint16_t>(data[offset + 1]) << 8);
-            if (format == V4L2_PIX_FMT_RGB565X) {
-                rgb = __builtin_bswap16(rgb);
-            }
-            const uint8_t r = static_cast<uint8_t>(((rgb >> 11) & 0x1F) * 255 / 31);
-            const uint8_t g = static_cast<uint8_t>(((rgb >> 5) & 0x3F) * 255 / 63);
-            const uint8_t b = static_cast<uint8_t>((rgb & 0x1F) * 255 / 31);
-            luma            = static_cast<uint8_t>((77 * r + 150 * g + 29 * b) >> 8);
-            return true;
-        }
-        case V4L2_PIX_FMT_RGB24: {
-            const size_t offset = pixel_index * 3;
-            if (offset + 2 >= len) {
-                return false;
-            }
-            const uint8_t r = data[offset];
-            const uint8_t g = data[offset + 1];
-            const uint8_t b = data[offset + 2];
-            luma            = static_cast<uint8_t>((77 * r + 150 * g + 29 * b) >> 8);
-            return true;
-        }
-        default:
-            return false;
-    }
-}
-
-static uint8_t sample_luma_cell(const uint8_t* data, size_t len, int width, int height, v4l2_pix_fmt_t format, int x,
-                                int y)
-{
-    int total = 0;
-    int count = 0;
-    const int dx = std::max(1, width / 64);
-    const int dy = std::max(1, height / 48);
-    for (int oy = -1; oy <= 1; oy++) {
-        for (int ox = -1; ox <= 1; ox++) {
-            uint8_t luma = 0;
-            if (read_luma_pixel(data, len, width, height, format, x + ox * dx, y + oy * dy, luma)) {
-                total += luma;
-                count++;
-            }
-        }
-    }
-    return count > 0 ? static_cast<uint8_t>(total / count) : 0;
-}
 
 StackChanCamera::StackChanCamera(const esp_video_init_config_t& config)
 {
@@ -473,8 +394,6 @@ void StackChanCamera::SetExplainUrl(const std::string& url, const std::string& t
 
 bool StackChanCamera::Capture()
 {
-    std::lock_guard<std::mutex> guard(camera_mutex_);
-
     if (encoder_thread_.joinable()) {
         encoder_thread_.join();
     }
@@ -934,8 +853,6 @@ bool StackChanCamera::Capture()
 
 bool StackChanCamera::StreamCaptures()
 {
-    std::lock_guard<std::mutex> guard(camera_mutex_);
-
     if (encoder_thread_.joinable()) {
         encoder_thread_.join();
     }
@@ -1050,138 +967,6 @@ bool StackChanCamera::StreamCaptures()
     return true;
 }
 
-bool StackChanCamera::SampleVisualAttention(VisualAttentionSample& sample)
-{
-    std::lock_guard<std::mutex> guard(camera_mutex_);
-
-    sample = VisualAttentionSample{};
-    if (encoder_thread_.joinable()) {
-        encoder_thread_.join();
-    }
-
-    if (!streaming_on_ || video_fd_ < 0) {
-        return false;
-    }
-
-    struct v4l2_buffer buf = {};
-    buf.type               = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    buf.memory             = V4L2_MEMORY_MMAP;
-    if (ioctl(video_fd_, VIDIOC_DQBUF, &buf) != 0) {
-        ESP_LOGW(TAG, "attention VIDIOC_DQBUF failed, errno=%d(%s)", errno, strerror(errno));
-        return false;
-    }
-
-#ifdef CONFIG_XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE
-    const int sample_width  = sensor_width_;
-    const int sample_height = sensor_height_;
-#else
-    const int sample_width  = frame_.width;
-    const int sample_height = frame_.height;
-#endif
-
-    const auto finish = [this, &buf](bool ok) {
-        if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
-            ESP_LOGE(TAG, "attention VIDIOC_QBUF failed");
-        }
-        return ok;
-    };
-
-    if (buf.index >= mmap_buffers_.size() || mmap_buffers_[buf.index].start == nullptr || sample_width <= 0 ||
-        sample_height <= 0) {
-        return finish(false);
-    }
-
-    const uint8_t* data = static_cast<const uint8_t*>(mmap_buffers_[buf.index].start);
-    const size_t data_len = std::min(static_cast<size_t>(buf.bytesused), mmap_buffers_[buf.index].length);
-    if (data_len == 0) {
-        return finish(false);
-    }
-
-    for (size_t gy = 0; gy < VisualAttentionSample::kGridHeight; gy++) {
-        for (size_t gx = 0; gx < VisualAttentionSample::kGridWidth; gx++) {
-            const int x = static_cast<int>((gx * 2 + 1) * sample_width / (VisualAttentionSample::kGridWidth * 2));
-            const int y = static_cast<int>((gy * 2 + 1) * sample_height / (VisualAttentionSample::kGridHeight * 2));
-            sample.lumaGrid[gy * VisualAttentionSample::kGridWidth + gx] =
-                sample_luma_cell(data, data_len, sample_width, sample_height, sensor_format_, x, y);
-        }
-    }
-
-    constexpr size_t center_left   = 4;
-    constexpr size_t center_right  = 12;
-    constexpr size_t center_top    = 2;
-    constexpr size_t center_bottom = 10;
-
-    float center_sum = 0.0f;
-    float border_sum = 0.0f;
-    int center_count = 0;
-    int border_count = 0;
-    for (size_t gy = 0; gy < VisualAttentionSample::kGridHeight; gy++) {
-        for (size_t gx = 0; gx < VisualAttentionSample::kGridWidth; gx++) {
-            const float value = sample.lumaGrid[gy * VisualAttentionSample::kGridWidth + gx];
-            const bool center = gx >= center_left && gx < center_right && gy >= center_top && gy < center_bottom;
-            if (center) {
-                center_sum += value;
-                center_count++;
-            } else {
-                border_sum += value;
-                border_count++;
-            }
-        }
-    }
-
-    if (center_count == 0 || border_count == 0) {
-        return finish(false);
-    }
-
-    sample.centerMean = center_sum / center_count;
-    const float border_mean = border_sum / border_count;
-
-    float variance_sum = 0.0f;
-    float edge_sum     = 0.0f;
-    int edge_count     = 0;
-    for (size_t gy = center_top; gy < center_bottom; gy++) {
-        for (size_t gx = center_left; gx < center_right; gx++) {
-            const float value = sample.lumaGrid[gy * VisualAttentionSample::kGridWidth + gx];
-            const float delta = value - sample.centerMean;
-            variance_sum += delta * delta;
-            if (gx + 1 < center_right) {
-                edge_sum += std::abs(value - sample.lumaGrid[gy * VisualAttentionSample::kGridWidth + gx + 1]);
-                edge_count++;
-            }
-            if (gy + 1 < center_bottom) {
-                edge_sum +=
-                    std::abs(value - sample.lumaGrid[(gy + 1) * VisualAttentionSample::kGridWidth + gx]);
-                edge_count++;
-            }
-        }
-    }
-
-    float mirror_diff = 0.0f;
-    int mirror_count  = 0;
-    for (size_t gy = center_top; gy < center_bottom; gy++) {
-        for (size_t gx = center_left; gx < (center_left + center_right) / 2; gx++) {
-            const size_t mirror_gx = center_right - 1 - (gx - center_left);
-            const float left       = sample.lumaGrid[gy * VisualAttentionSample::kGridWidth + gx];
-            const float right      = sample.lumaGrid[gy * VisualAttentionSample::kGridWidth + mirror_gx];
-            mirror_diff += std::abs(left - right);
-            mirror_count++;
-        }
-    }
-
-    sample.centerVariance   = variance_sum / center_count;
-    sample.centerEdge       = edge_count > 0 ? edge_sum / edge_count : 0.0f;
-    sample.mirrorSimilarity = mirror_count > 0 ? std::max(0.0f, 1.0f - (mirror_diff / mirror_count) / 80.0f) : 0.0f;
-
-    const float variance_score = std::min(1.0f, sample.centerVariance / 1200.0f);
-    const float edge_score     = std::min(1.0f, sample.centerEdge / 35.0f);
-    const float contrast_score = std::min(1.0f, std::abs(sample.centerMean - border_mean) / 50.0f);
-    sample.detailScore =
-        variance_score * 0.40f + edge_score * 0.35f + contrast_score * 0.15f + sample.mirrorSimilarity * 0.10f;
-    sample.valid = true;
-
-    return finish(true);
-}
-
 bool StackChanCamera::SetHMirror(bool enabled)
 {
     if (video_fd_ < 0) return false;
@@ -1241,8 +1026,6 @@ bool StackChanCamera::SetVFlip(bool enabled)
  */
 std::string StackChanCamera::Explain(const std::string& question)
 {
-    std::lock_guard<std::mutex> guard(camera_mutex_);
-
     if (explain_url_.empty()) {
         throw std::runtime_error("Image explain URL or token is not set");
     }
