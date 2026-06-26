@@ -3,8 +3,10 @@
 
 #ifndef CONFIG_IDF_TARGET_ESP32
 #include <lvgl.h>
+#include <array>
 #include <thread>
 #include <memory>
+#include <mutex>
 #include <vector>
 
 #include <freertos/FreeRTOS.h>
@@ -17,6 +19,20 @@
 struct JpegChunk {
     uint8_t* data;
     size_t len;
+};
+
+struct VisualAttentionSample {
+    static constexpr size_t kGridWidth  = 16;
+    static constexpr size_t kGridHeight = 12;
+    static constexpr size_t kGridSize   = kGridWidth * kGridHeight;
+
+    bool valid             = false;
+    float centerMean       = 0.0f;
+    float centerVariance   = 0.0f;
+    float centerEdge       = 0.0f;
+    float mirrorSimilarity = 0.0f;
+    float detailScore      = 0.0f;
+    std::array<uint8_t, kGridSize> lumaGrid{};
 };
 
 class StackChanCamera : public Camera {
@@ -43,6 +59,7 @@ private:
     std::string explain_url_;
     std::string explain_token_;
     std::thread encoder_thread_;
+    std::mutex camera_mutex_;
 
 public:
     StackChanCamera(const esp_video_init_config_t& config);
@@ -51,6 +68,7 @@ public:
     virtual void SetExplainUrl(const std::string& url, const std::string& token);
     virtual bool Capture() override;
     bool StreamCaptures();
+    bool SampleVisualAttention(VisualAttentionSample& sample);
 
     // 翻转控制函数
     virtual bool SetHMirror(bool enabled) override;

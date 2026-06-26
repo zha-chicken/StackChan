@@ -261,6 +261,9 @@ public:
     bool setWaterDailyGoal(int goalMl);
     void waterMonitorUpdateReminder();
 
+    /* --------------------------- Visual Attention ---------------------------- */
+    void visualAttentionUpdate();
+
     /* ------------------------------ Onboarding ------------------------------- */
     OnboardingProfileStatus_t getOnboardingProfileStatus();
     std::string getOnboardingProfileJson();
@@ -358,6 +361,7 @@ private:
     bool _xiaozhi_start_requested = false;
 
     void xiaozhi_board_init();
+    void visualAttentionInit();
     void onboardingInit();
     void waterMonitorInit();
     void lvgl_init();
