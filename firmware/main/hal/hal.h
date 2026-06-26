@@ -145,6 +145,22 @@ struct WaterMonitorStatus_t {
 };
 
 /**
+ * @brief Local onboarding state used to personalize the M5 Agent.
+ *
+ */
+struct OnboardingProfileStatus_t {
+    bool active       = false;
+    bool complete     = false;
+    int step          = 0;
+    std::string preferredName;
+    std::string communicationStyle;
+    std::string focusTopics;
+    std::string relationshipStyle;
+    std::string reminderStyle;
+    std::string summary;
+};
+
+/**
  * @brief
  *
  */
@@ -245,6 +261,13 @@ public:
     bool setWaterDailyGoal(int goalMl);
     void waterMonitorUpdateReminder();
 
+    /* ------------------------------ Onboarding ------------------------------- */
+    OnboardingProfileStatus_t getOnboardingProfileStatus();
+    std::string getOnboardingProfileJson();
+    std::string startOnboarding();
+    std::string recordOnboardingAnswer(std::string_view answer);
+    std::string resetOnboardingProfile();
+
     /* ----------------------------------- BLE ---------------------------------- */
     uitk::Signal<const char*> onBleMotionData;
     uitk::Signal<const char*> onBleAvatarData;
@@ -335,6 +358,7 @@ private:
     bool _xiaozhi_start_requested = false;
 
     void xiaozhi_board_init();
+    void onboardingInit();
     void waterMonitorInit();
     void lvgl_init();
     void xiaozhi_mcp_init();

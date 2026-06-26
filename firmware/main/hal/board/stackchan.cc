@@ -9,6 +9,7 @@
 #include "axp2101.h"
 #include "settings.h"
 
+#include <cJSON.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <wifi_station.h>
@@ -17,6 +18,7 @@
 #include <esp_lcd_ili9341.h>
 #include <esp_timer.h>
 #include <algorithm>
+#include <hal/hal.h>
 #include "stackchan_camera.h"
 #include "hal_bridge.h"
 
@@ -536,6 +538,27 @@ public:
 
         level = pmic_->GetBatteryLevel();
         return true;
+    }
+
+    virtual std::string GetDeviceStatusJson() override
+    {
+        auto base = WifiBoard::GetDeviceStatusJson();
+        cJSON* root = cJSON_Parse(base.c_str());
+        if (root == nullptr) {
+            return base;
+        }
+
+        auto onboarding_json = GetHAL().getOnboardingProfileJson();
+        cJSON* onboarding = cJSON_Parse(onboarding_json.c_str());
+        if (onboarding != nullptr) {
+            cJSON_AddItemToObject(root, "onboarding", onboarding);
+        }
+
+        char* json_str = cJSON_PrintUnformatted(root);
+        std::string result = json_str ? json_str : base;
+        cJSON_free(json_str);
+        cJSON_Delete(root);
+        return result;
     }
 
     virtual void SetPowerSaveLevel(PowerSaveLevel level) override

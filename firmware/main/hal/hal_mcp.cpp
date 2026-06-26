@@ -92,6 +92,53 @@ void Hal::xiaozhi_mcp_init()
             return true;
         });
 
+    mclog::tagInfo(_tag, "add onboarding.get_profile tool");
+    mcp_server.AddTool("self.onboarding.get_profile",
+                       "Get the persistent local onboarding profile for this user. Call this at the start of a "
+                       "conversation and before answers where personalization helps. If complete is true, use the "
+                       "returned summary and assistant_instruction to adapt tone, detail level, examples, water "
+                       "reminders, and how you address the user.",
+                       std::vector<Property>{}, [this](const PropertyList& properties) -> ReturnValue {
+                           auto result = GetHAL().getOnboardingProfileJson();
+                           mclog::tagInfo(_tag, "onboarding.get_profile: {}", result);
+                           return result;
+                       });
+
+    mclog::tagInfo(_tag, "add onboarding.start tool");
+    mcp_server.AddTool("self.onboarding.start",
+                       "Start or restart local onboarding. When the user says exactly 'onboarding' or asks you to "
+                       "learn their preferences, call this tool. Then ask exactly the returned next_question and wait "
+                       "for the user answer.",
+                       std::vector<Property>{}, [this](const PropertyList& properties) -> ReturnValue {
+                           auto result = GetHAL().startOnboarding();
+                           mclog::tagInfo(_tag, "onboarding.start: {}", result);
+                           return result;
+                       });
+
+    mclog::tagInfo(_tag, "add onboarding.record_answer tool");
+    mcp_server.AddTool("self.onboarding.record_answer",
+                       "Record one user answer during onboarding. During active onboarding, call this after every user "
+                       "answer with the user's exact answer text. If the result has next_question, ask exactly that "
+                       "question next. If complete is true, tell the user onboarding is done and use the returned "
+                       "profile summary for future replies.",
+                       PropertyList({Property("answer", kPropertyTypeString)}),
+                       [this](const PropertyList& properties) -> ReturnValue {
+                           auto answer = properties["answer"].value<std::string>();
+                           auto result = GetHAL().recordOnboardingAnswer(answer);
+                           mclog::tagInfo(_tag, "onboarding.record_answer: {}", result);
+                           return result;
+                       });
+
+    mclog::tagInfo(_tag, "add onboarding.reset tool");
+    mcp_server.AddTool("self.onboarding.reset",
+                       "Clear the saved onboarding profile and preferences. Use this only when the user asks to reset "
+                       "or forget their personalization profile.",
+                       std::vector<Property>{}, [this](const PropertyList& properties) -> ReturnValue {
+                           auto result = GetHAL().resetOnboardingProfile();
+                           mclog::tagInfo(_tag, "onboarding.reset: {}", result);
+                           return result;
+                       });
+
     mclog::tagInfo(_tag, "add water.get_status tool");
     mcp_server.AddTool("self.water.get_status",
                        "Get local water monitor status from the Mini Scales connected to Port A. Call this at the "
