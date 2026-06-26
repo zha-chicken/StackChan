@@ -92,6 +92,43 @@ void Hal::xiaozhi_mcp_init()
             return true;
         });
 
+    mclog::tagInfo(_tag, "add water.get_status tool");
+    mcp_server.AddTool("self.water.get_status",
+                       "Get the local water monitor status from the Mini Scales connected to Port A. Use this whenever "
+                       "the user asks how much water they consumed, how much is left, or the current cup/bottle weight. "
+                       "Water is estimated as 1 gram equals 1 milliliter. consumed_ml is measured from the last refill "
+                       "baseline.",
+                       std::vector<Property>{}, [this](const PropertyList& properties) -> ReturnValue {
+                           auto status = GetHAL().getWaterMonitorStatus();
+                           auto result = fmt::format(
+                               R"({{"scale_ready": {}, "baseline_set": {}, "weight_g": {:.1f}, "baseline_g": {:.1f}, "consumed_ml": {:.1f}, "last_update_ms": {}}})",
+                               status.scaleReady ? "true" : "false", status.baselineSet ? "true" : "false",
+                               status.weightGrams, status.baselineGrams, status.consumedMl, status.lastUpdateMs);
+                           if (!status.scaleReady) {
+                               result =
+                                   fmt::format(R"({{"scale_ready": false, "baseline_set": {}, "weight_g": {:.1f}, "baseline_g": {:.1f}, "consumed_ml": {:.1f}, "last_update_ms": {}, "error": "Mini Scales is not responding on Port A address 0x26."}})",
+                                               status.baselineSet ? "true" : "false", status.weightGrams,
+                                               status.baselineGrams, status.consumedMl, status.lastUpdateMs);
+                           }
+                           mclog::tagInfo(_tag, "water.get_status: {}", result);
+                           return result;
+                       });
+
+    mclog::tagInfo(_tag, "add water.set_refill_baseline tool");
+    mcp_server.AddTool("self.water.set_refill_baseline",
+                       "Set the water refill baseline to the current Mini Scales reading. Use this after the user says "
+                       "they refilled water, placed a full bottle/cup on the scale, or wants to reset water tracking.",
+                       std::vector<Property>{}, [this](const PropertyList& properties) -> ReturnValue {
+                           bool ok     = GetHAL().setWaterRefillBaseline();
+                           auto status = GetHAL().getWaterMonitorStatus();
+                           auto result = ok ? fmt::format(R"({{"ok": true, "baseline_g": {:.1f}, "consumed_ml": 0.0}})",
+                                                          status.baselineGrams)
+                                            : std::string(
+                                                  R"({"ok": false, "error": "Mini Scales is not responding on Port A address 0x26."})");
+                           mclog::tagInfo(_tag, "water.set_refill_baseline: {}", result);
+                           return result;
+                       });
+
     mclog::tagInfo(_tag, "add robot.create_reminder tool");
     mcp_server.AddTool("self.robot.create_reminder",
                        "Create a reminder. Duration is in seconds. Message is what to say when time is up. Set repeat "

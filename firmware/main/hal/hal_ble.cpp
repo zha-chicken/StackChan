@@ -176,6 +176,9 @@ private:
             return;
         }
 
+        const char* cmd = doc["cmd"].as<const char*>();
+        mclog::tagInfo(_tag, "config cmd: {}", cmd ? cmd : "<null>");
+
         if (doc["cmd"] == "setWifi") {
             handle_set_wifi(doc["data"]);
         } else if (doc["cmd"] == "getWifiStatus") {
@@ -183,6 +186,8 @@ private:
         } else if (doc["cmd"] == "handshake") {
             std::string data = doc["data"].as<std::string>();
             handle_handshake(data);
+        } else {
+            mclog::tagWarn(_tag, "unknown config cmd");
         }
     }
 
@@ -219,7 +224,9 @@ private:
 
     void handle_handshake(std::string_view data)
     {
+        mclog::tagInfo(_tag, "handle handshake input_len={}", data.size());
         auto token = secret_logic::generate_handshake_token(data);
+        mclog::tagInfo(_tag, "handshake token_len={}", token.size());
         notify_state(4, token.c_str());
     }
 
@@ -238,7 +245,9 @@ private:
 
         std::string json_str;
         ArduinoJson::serializeJson(doc, json_str);
-        stackchan_ble_notify_config(json_str.c_str(), json_str.length());
+        int rc = stackchan_ble_notify_config(json_str.c_str(), json_str.length());
+        mclog::tagInfo(_tag, "notify state type={} state_len={} json_len={} rc={}", type, strlen(state),
+                       json_str.length(), rc);
     }
 };
 

@@ -122,6 +122,19 @@ struct XiaozhiConfig_t {
 };
 
 /**
+ * @brief Current local water monitor state from the Mini Scales unit on Port A.
+ *
+ */
+struct WaterMonitorStatus_t {
+    bool scaleReady   = false;
+    bool baselineSet  = false;
+    float weightGrams = 0.0f;
+    float baselineGrams = 0.0f;
+    float consumedMl    = 0.0f;
+    std::uint32_t lastUpdateMs = 0;
+};
+
+/**
  * @brief
  *
  */
@@ -215,6 +228,10 @@ public:
     XiaozhiConfig_t getXiaozhiConfig();
     void setXiaozhiConfig(XiaozhiConfig_t config);
 
+    /* ------------------------------ Water Monitor ---------------------------- */
+    WaterMonitorStatus_t getWaterMonitorStatus();
+    bool setWaterRefillBaseline();
+
     /* ----------------------------------- BLE ---------------------------------- */
     uitk::Signal<const char*> onBleMotionData;
     uitk::Signal<const char*> onBleAvatarData;
@@ -305,6 +322,7 @@ private:
     bool _xiaozhi_start_requested = false;
 
     void xiaozhi_board_init();
+    void waterMonitorInit();
     void lvgl_init();
     void xiaozhi_mcp_init();
     void ble_init(bool useAltUuid);

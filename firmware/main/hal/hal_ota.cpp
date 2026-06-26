@@ -13,6 +13,10 @@ static const std::string_view _tag = "HAL-OTA";
 
 bool Hal::updateFirmware(std::function<void(std::string_view)> onLog)
 {
+    mclog::tagWarn(_tag, "firmware update disabled for custom WaterMonitor build");
+    onLog("Firmware update disabled for WaterMonitor build");
+    return true;
+
     onLog("Checking firmware updates...");
 
     Ota ota;

@@ -1,7 +1,20 @@
 diff --git a/main/application.cc b/main/application.cc
-index d69d43d..3b6f07e 100644
+index d69d43d..f06d7e8 100644
 --- a/main/application.cc
 +++ b/main/application.cc
+@@ -433,10 +433,8 @@ void Application::CheckNewVersion() {
+         retry_delay = 10; // Reset retry delay
+ 
+         if (ota_->HasNewVersion()) {
+-            if (UpgradeFirmware(ota_->GetFirmwareUrl(), ota_->GetFirmwareVersion())) {
+-                return; // This line will never be reached after reboot
+-            }
+-            // If upgrade failed, continue to normal operation
++            ESP_LOGW(TAG, "Skipping automatic firmware upgrade for custom WaterMonitor build: version=%s",
++                ota_->GetFirmwareVersion().c_str());
+         }
+ 
+         // No new version, mark the current version as valid
 @@ -610,33 +610,36 @@ void Application::InitializeProtocol() {
  }
  

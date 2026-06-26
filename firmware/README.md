@@ -1,6 +1,10 @@
 
 ## Build
 
+### Water Monitor Variant
+
+For the StackChan + Unit Mini Scales water monitor build, see [WATER_MONITOR.md](WATER_MONITOR.md).
+
 ### Fetch Dependencies
 
 ```bash

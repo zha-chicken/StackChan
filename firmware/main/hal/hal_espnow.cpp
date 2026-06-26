@@ -157,28 +157,7 @@ bool Hal::espNowSend(const std::vector<uint8_t>& data, const uint8_t* destAddr)
 
 void Hal::setLaserEnabled(bool enabled)
 {
-    static bool laser_enabled = false;
-    static bool is_inited     = false;
-
-    if (laser_enabled == enabled) {
-        return;
-    }
-
-    const gpio_num_t laser_pin = GPIO_NUM_2;
-
-    if (!is_inited) {
-        gpio_reset_pin(laser_pin);
-        gpio_set_direction(laser_pin, GPIO_MODE_OUTPUT);
-        gpio_set_pull_mode(laser_pin, GPIO_PULLUP_ONLY);
-        is_inited = true;
-    }
-
-    mclog::tagInfo(_tag, "set laser {}", enabled ? "enabled" : "disabled");
-
     if (enabled) {
-        gpio_set_level(laser_pin, 1);
-    } else {
-        gpio_set_level(laser_pin, 0);
+        mclog::tagWarn(_tag, "laser disabled because GPIO2 is used by Port A Mini Scales SDA");
     }
-    laser_enabled = enabled;
 }

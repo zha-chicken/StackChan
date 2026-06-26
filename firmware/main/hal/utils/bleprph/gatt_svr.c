@@ -423,6 +423,7 @@ int stackchan_ble_notify_avatar(const char *json_data, uint16_t len)
 int stackchan_ble_notify_config(const char *json_data, uint16_t len)
 {
     if (!json_data || len == 0 || len >= STACKCHAN_MAX_JSON_LEN) {
+        MODLOG_DFLT(ERROR, "Invalid Config notification length: %d", len);
         return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
     }
 
@@ -432,7 +433,10 @@ int stackchan_ble_notify_config(const char *json_data, uint16_t len)
 
     if (g_conn_handle != BLE_HS_CONN_HANDLE_NONE) {
         ble_gatts_chr_updated(stackchan_config_handle);
-        MODLOG_DFLT(INFO, "Config notification sent");
+        MODLOG_DFLT(INFO, "Config notification updated; len=%d conn_handle=%d attr_handle=%d", len, g_conn_handle,
+                    stackchan_config_handle);
+    } else {
+        MODLOG_DFLT(WARN, "Config notification skipped; no connection len=%d", len);
     }
 
     return 0;
