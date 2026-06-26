@@ -94,38 +94,90 @@ void Hal::xiaozhi_mcp_init()
 
     mclog::tagInfo(_tag, "add water.get_status tool");
     mcp_server.AddTool("self.water.get_status",
-                       "Get the local water monitor status from the Mini Scales connected to Port A. Use this whenever "
-                       "the user asks how much water they consumed, how much is left, or the current cup/bottle weight. "
-                       "Water is estimated as 1 gram equals 1 milliliter. consumed_ml is measured from the last refill "
-                       "baseline.",
+                       "Get local water monitor status from the Mini Scales connected to Port A. Call this at the "
+                       "start of the first water-related conversation. If empty_cup_set is false, guide the user to put "
+                       "the empty cup/bottle on the scale, wait for a stable reading, then call "
+                       "self.water.set_empty_cup_weight. Water is estimated as 1 gram equals 1 milliliter. water_ml is "
+                       "current total weight minus the saved empty cup weight. today_consumed_ml tracks stable water "
+                       "drops toward the daily goal.",
                        std::vector<Property>{}, [this](const PropertyList& properties) -> ReturnValue {
                            auto status = GetHAL().getWaterMonitorStatus();
                            auto result = fmt::format(
-                               R"({{"scale_ready": {}, "baseline_set": {}, "weight_g": {:.1f}, "baseline_g": {:.1f}, "consumed_ml": {:.1f}, "last_update_ms": {}}})",
-                               status.scaleReady ? "true" : "false", status.baselineSet ? "true" : "false",
-                               status.weightGrams, status.baselineGrams, status.consumedMl, status.lastUpdateMs);
+                               R"({{"scale_ready": {}, "cup_present": {}, "empty_cup_set": {}, "baseline_set": {}, "daily_goal_met": {}, "weight_g": {:.1f}, "empty_cup_g": {:.1f}, "water_ml": {:.1f}, "baseline_g": {:.1f}, "baseline_water_ml": {:.1f}, "consumed_ml": {:.1f}, "today_consumed_ml": {:.1f}, "daily_goal_ml": {}, "remaining_goal_ml": {:.1f}, "today_ymd": {}, "last_update_ms": {}}})",
+                               status.scaleReady ? "true" : "false", status.cupPresent ? "true" : "false",
+                               status.emptyCupSet ? "true" : "false", status.baselineSet ? "true" : "false",
+                               status.dailyGoalMet ? "true" : "false", status.weightGrams, status.emptyCupGrams,
+                               status.waterMl, status.baselineGrams, status.baselineWaterMl, status.consumedMl,
+                               status.todayConsumedMl, status.dailyGoalMl, status.remainingGoalMl, status.todayYmd,
+                               status.lastUpdateMs);
                            if (!status.scaleReady) {
                                result =
-                                   fmt::format(R"({{"scale_ready": false, "baseline_set": {}, "weight_g": {:.1f}, "baseline_g": {:.1f}, "consumed_ml": {:.1f}, "last_update_ms": {}, "error": "Mini Scales is not responding on Port A address 0x26."}})",
-                                               status.baselineSet ? "true" : "false", status.weightGrams,
-                                               status.baselineGrams, status.consumedMl, status.lastUpdateMs);
+                                   fmt::format(R"({{"scale_ready": false, "cup_present": false, "empty_cup_set": {}, "baseline_set": {}, "daily_goal_met": {}, "weight_g": {:.1f}, "empty_cup_g": {:.1f}, "water_ml": {:.1f}, "baseline_g": {:.1f}, "baseline_water_ml": {:.1f}, "consumed_ml": {:.1f}, "today_consumed_ml": {:.1f}, "daily_goal_ml": {}, "remaining_goal_ml": {:.1f}, "today_ymd": {}, "last_update_ms": {}, "error": "Mini Scales is not responding on Port A address 0x26."}})",
+                                               status.emptyCupSet ? "true" : "false",
+                                               status.baselineSet ? "true" : "false",
+                                               status.dailyGoalMet ? "true" : "false", status.weightGrams,
+                                               status.emptyCupGrams, status.waterMl, status.baselineGrams,
+                                               status.baselineWaterMl, status.consumedMl, status.todayConsumedMl,
+                                               status.dailyGoalMl, status.remainingGoalMl, status.todayYmd,
+                                               status.lastUpdateMs);
+                           } else if (!status.emptyCupSet) {
+                               if (!result.empty() && result.back() == '}') {
+                                   result.erase(result.size() - 1);
+                               }
+                               result +=
+                                   R"(,"setup_required":"empty_cup_weight","assistant_instruction":"Ask the user to put the empty cup or bottle on the scale. After they confirm it is empty and stable, call self.water.set_empty_cup_weight."})";
                            }
                            mclog::tagInfo(_tag, "water.get_status: {}", result);
+                           return result;
+                       });
+
+    mclog::tagInfo(_tag, "add water.set_empty_cup_weight tool");
+    mcp_server.AddTool("self.water.set_empty_cup_weight",
+                       "Save the current Mini Scales reading as the empty cup/bottle weight. Use this when the user has "
+                       "placed the empty cup/bottle on the scale and confirmed it is empty. This value is saved in NVS "
+                       "and used for all future water_ml calculations.",
+                       std::vector<Property>{}, [this](const PropertyList& properties) -> ReturnValue {
+                           bool ok     = GetHAL().setWaterEmptyCupWeight();
+                           auto status = GetHAL().getWaterMonitorStatus();
+                           auto result = ok ? fmt::format(R"({{"ok": true, "empty_cup_g": {:.1f}, "water_ml": {:.1f}}})",
+                                                          status.emptyCupGrams, status.waterMl)
+                                            : std::string(
+                                                  R"({"ok": false, "error": "Mini Scales is not responding or the empty cup weight is invalid."})");
+                           mclog::tagInfo(_tag, "water.set_empty_cup_weight: {}", result);
                            return result;
                        });
 
     mclog::tagInfo(_tag, "add water.set_refill_baseline tool");
     mcp_server.AddTool("self.water.set_refill_baseline",
                        "Set the water refill baseline to the current Mini Scales reading. Use this after the user says "
-                       "they refilled water, placed a full bottle/cup on the scale, or wants to reset water tracking.",
+                       "they refilled water, placed a full bottle/cup on the scale, or wants to reset water tracking. "
+                       "If empty_cup_set is false, first ask the user to place the empty cup/bottle and call "
+                       "self.water.set_empty_cup_weight.",
                        std::vector<Property>{}, [this](const PropertyList& properties) -> ReturnValue {
                            bool ok     = GetHAL().setWaterRefillBaseline();
                            auto status = GetHAL().getWaterMonitorStatus();
-                           auto result = ok ? fmt::format(R"({{"ok": true, "baseline_g": {:.1f}, "consumed_ml": 0.0}})",
-                                                          status.baselineGrams)
+                           auto result = ok ? fmt::format(R"({{"ok": true, "baseline_g": {:.1f}, "baseline_water_ml": {:.1f}, "water_ml": {:.1f}, "consumed_ml": 0.0}})",
+                                                          status.baselineGrams, status.baselineWaterMl,
+                                                          status.waterMl)
                                             : std::string(
-                                                  R"({"ok": false, "error": "Mini Scales is not responding on Port A address 0x26."})");
+                                                  R"({"ok": false, "error": "Mini Scales is not responding, or empty cup weight has not been set yet."})");
                            mclog::tagInfo(_tag, "water.set_refill_baseline: {}", result);
+                           return result;
+                       });
+
+    mclog::tagInfo(_tag, "add water.set_daily_goal tool");
+    mcp_server.AddTool("self.water.set_daily_goal",
+                       "Set the daily drinking goal in milliliters. Default is 1500 ml. Use this when the user asks to "
+                       "change their target water intake.",
+                       PropertyList({Property("goal_ml", kPropertyTypeInteger, 1500, 250, 5000)}),
+                       [this](const PropertyList& properties) -> ReturnValue {
+                           int goal_ml = properties["goal_ml"].value<int>();
+                           bool ok     = GetHAL().setWaterDailyGoal(goal_ml);
+                           auto status = GetHAL().getWaterMonitorStatus();
+                           auto result = ok ? fmt::format(R"({{"ok": true, "daily_goal_ml": {}, "remaining_goal_ml": {:.1f}}})",
+                                                          status.dailyGoalMl, status.remainingGoalMl)
+                                            : std::string(R"({"ok": false, "error": "daily goal must be 250-5000 ml."})");
+                           mclog::tagInfo(_tag, "water.set_daily_goal: {}", result);
                            return result;
                        });
 

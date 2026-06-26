@@ -126,11 +126,21 @@ struct XiaozhiConfig_t {
  *
  */
 struct WaterMonitorStatus_t {
-    bool scaleReady   = false;
-    bool baselineSet  = false;
-    float weightGrams = 0.0f;
-    float baselineGrams = 0.0f;
-    float consumedMl    = 0.0f;
+    bool scaleReady       = false;
+    bool cupPresent       = false;
+    bool emptyCupSet      = false;
+    bool baselineSet      = false;
+    bool dailyGoalMet     = false;
+    float weightGrams     = 0.0f;
+    float emptyCupGrams   = 0.0f;
+    float waterMl         = 0.0f;
+    float baselineGrams   = 0.0f;
+    float baselineWaterMl = 0.0f;
+    float consumedMl      = 0.0f;
+    float todayConsumedMl = 0.0f;
+    float remainingGoalMl = 0.0f;
+    int dailyGoalMl       = 1500;
+    int todayYmd          = 0;
     std::uint32_t lastUpdateMs = 0;
 };
 
@@ -230,7 +240,10 @@ public:
 
     /* ------------------------------ Water Monitor ---------------------------- */
     WaterMonitorStatus_t getWaterMonitorStatus();
+    bool setWaterEmptyCupWeight();
     bool setWaterRefillBaseline();
+    bool setWaterDailyGoal(int goalMl);
+    void waterMonitorUpdateReminder();
 
     /* ----------------------------------- BLE ---------------------------------- */
     uitk::Signal<const char*> onBleMotionData;

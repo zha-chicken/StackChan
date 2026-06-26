@@ -151,6 +151,7 @@ static void _stackchan_update_task(void* param)
         vTaskDelay(pdMS_TO_TICKS(20));
 
         tools::update_reminders();
+        GetHAL().waterMonitorUpdateReminder();
 
         LvglLockGuard lock;
 
