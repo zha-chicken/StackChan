@@ -151,6 +151,28 @@ bool DownloadAvatar(const std::string& url, AvatarBuffer& out)
     return ok;
 }
 
+void ApplyCircularBlackMaskRgb565(AvatarBuffer& buffer)
+{
+    if (buffer.data == nullptr || buffer.size != kRgb565Bytes) {
+        return;
+    }
+
+    constexpr int diameter = static_cast<int>(kAvatarWidth);
+    constexpr int radius2 = diameter * diameter;
+
+    for (size_t y = 0; y < kAvatarHeight; ++y) {
+        const int dy = static_cast<int>(y * 2 + 1) - static_cast<int>(kAvatarHeight);
+        uint8_t* row = buffer.data + y * kAvatarStride;
+        for (size_t x = 0; x < kAvatarWidth; ++x) {
+            const int dx = static_cast<int>(x * 2 + 1) - static_cast<int>(kAvatarWidth);
+            if (dx * dx + dy * dy > radius2) {
+                row[x * 2] = 0;
+                row[x * 2 + 1] = 0;
+            }
+        }
+    }
+}
+
 bool ApplyAvatar(AvatarBuffer& buffer)
 {
     auto display = dynamic_cast<StackChanAvatarDisplay*>(Board::GetInstance().GetDisplay());
@@ -161,6 +183,7 @@ bool ApplyAvatar(AvatarBuffer& buffer)
 
     std::unique_ptr<LvglImage> image;
     if (buffer.size == kRgb565Bytes) {
+        ApplyCircularBlackMaskRgb565(buffer);
         image = std::make_unique<LvglAllocatedImage>(
             buffer.data,
             buffer.size,
