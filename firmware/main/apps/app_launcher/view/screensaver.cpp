@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: MIT
  */
 #include "view.h"
+#include <assets/assets.h>
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 
@@ -14,12 +16,22 @@ using namespace uitk::games;
 using namespace uitk::games::dvd_screensaver;
 
 static const Vector2 _screen_size               = {320, 240};
-static const Vector2 _logo_size                 = {64, 48};
+static const Vector2 _logo_size                 = {112, 100};
 static const int _logo_id                       = 666;
-static const std::vector<uint32_t> _logo_colors = {
-    0xffffff, 0xfffa01, 0xff8300, 0x00feff, 0xff2600, 0xbe00ff, 0x0026ff, 0xff008b,
-};
 static const uint32_t _bg_color = 0x000000;
+static const uint32_t _ccflo_width              = 634;
+static const uint32_t _ccflo_height             = 566;
+
+static uint32_t fit_image_scale(uint32_t source_width, uint32_t source_height, uint32_t max_width, uint32_t max_height)
+{
+    if (source_width == 0 || source_height == 0 || max_width == 0 || max_height == 0) {
+        return 256;
+    }
+
+    const uint32_t width_scale  = max_width * 256 / source_width;
+    const uint32_t height_scale = max_height * 256 / source_height;
+    return std::max<uint32_t>(1, std::min(width_scale, height_scale));
+}
 
 Screensaver::~Screensaver()
 {
@@ -38,36 +50,21 @@ void Screensaver::onInit()
 
     _logo = std::make_unique<Container>(_screen->get());
     _logo->setSize(_logo_size.width, _logo_size.height);
-    _logo->setBgColor(lv_color_hex(_logo_colors[0]));
+    _logo->setBgOpa(0);
     _logo->align(LV_ALIGN_TOP_LEFT, 2333, 2333);
     _logo->removeFlag(LV_OBJ_FLAG_SCROLLABLE);
     _logo->setPadding(0, 0, 0, 0);
     _logo->setBorderWidth(0);
     _logo->setRadius(0);
 
-    _left_eye = std::make_unique<Container>(_logo->get());
-    _left_eye->align(LV_ALIGN_CENTER, -15, -3);
-    _left_eye->setBgColor(lv_color_hex(_bg_color));
-    _left_eye->removeFlag(LV_OBJ_FLAG_SCROLLABLE);
-    _left_eye->setRadius(LV_RADIUS_CIRCLE);
-    _left_eye->setBorderWidth(0);
-    _left_eye->setSize(6, 6);
-
-    _right_eye = std::make_unique<Container>(_logo->get());
-    _right_eye->align(LV_ALIGN_CENTER, 15, -3);
-    _right_eye->setBgColor(lv_color_hex(_bg_color));
-    _right_eye->removeFlag(LV_OBJ_FLAG_SCROLLABLE);
-    _right_eye->setRadius(LV_RADIUS_CIRCLE);
-    _right_eye->setBorderWidth(0);
-    _right_eye->setSize(6, 6);
-
-    _mouth = std::make_unique<Container>(_logo->get());
-    _mouth->align(LV_ALIGN_CENTER, 0, 5);
-    _mouth->setBgColor(lv_color_hex(_bg_color));
-    _mouth->removeFlag(LV_OBJ_FLAG_SCROLLABLE);
-    _mouth->setBorderWidth(0);
-    _mouth->setSize(18, 2);
-    _mouth->setRadius(0);
+    _logo_image_dsc = assets::get_image("ccflo.png");
+    if (_logo_image_dsc.data_size != 0) {
+        _logo_image = std::make_unique<Image>(_logo->get());
+        _logo_image->setSrc(&_logo_image_dsc);
+        _logo_image->setScale(
+            fit_image_scale(_ccflo_width, _ccflo_height, _logo_size.width, _logo_size.height));
+        _logo_image->align(LV_ALIGN_CENTER, 0, 0);
+    }
 }
 
 void Screensaver::onBuildLevel()
@@ -93,10 +90,5 @@ void Screensaver::onRender(float dt)
 
 void Screensaver::onLogoCollide(int logoGroupId)
 {
-    _color_index++;
-    if (_color_index >= _logo_colors.size()) {
-        _color_index = 0;
-    }
-
-    _logo->setBgColor(lv_color_hex(_logo_colors[_color_index]));
+    (void)logoGroupId;
 }

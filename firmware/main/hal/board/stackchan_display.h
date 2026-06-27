@@ -25,7 +25,21 @@ private:
     esp_timer_handle_t preview_timer_                = nullptr;
     std::unique_ptr<LvglImage> preview_image_cached_ = nullptr;
 
+    enum class AgentAvatarImageMode {
+        Standby,
+        Listening,
+        Reading,
+    };
+
+    lv_obj_t* agent_avatar_image_             = nullptr;
+    lv_image_dsc_t agent_reading_image_       = {};
+    lv_image_dsc_t agent_listening_image_     = {};
+    lv_image_dsc_t agent_standby_image_       = {};
+    bool agent_avatar_image_ready_            = false;
+
     void CreateIdleMotionModifier();
+    void SetAgentAvatarImage(AgentAvatarImageMode mode);
+    void SetDefaultAvatarFaceVisible(bool visible);
 
 protected:
     virtual bool Lock(int timeout_ms = 0) override;

@@ -66,10 +66,8 @@ private:
     std::unique_ptr<uitk::lvgl_cpp::ScreenActive> _prev_screen;
     std::unique_ptr<uitk::lvgl_cpp::Screen> _screen;
     std::unique_ptr<uitk::lvgl_cpp::Container> _logo;
-    std::unique_ptr<uitk::lvgl_cpp::Container> _left_eye;
-    std::unique_ptr<uitk::lvgl_cpp::Container> _right_eye;
-    std::unique_ptr<uitk::lvgl_cpp::Container> _mouth;
-    int _color_index = 0;
+    std::unique_ptr<uitk::lvgl_cpp::Image> _logo_image;
+    lv_image_dsc_t _logo_image_dsc = {};
 };
 
 }  // namespace view

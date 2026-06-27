@@ -15,13 +15,35 @@
 #include <lvgl.h>
 #include <lvgl_theme.h>
 #include <stackchan/stackchan.h>
+#include <assets/assets.h>
 #include <assets/lang_config.h>
 #include <hal/hal.h>
+#include <algorithm>
 
 using namespace stackchan;
 using namespace stackchan::avatar;
 
 #define TAG "StackChanAvatarDisplay"
+
+namespace {
+constexpr uint32_t kCcReadingWidth    = 510;
+constexpr uint32_t kCcReadingHeight   = 374;
+constexpr uint32_t kCcListeningWidth  = 614;
+constexpr uint32_t kCcListeningHeight = 434;
+constexpr uint32_t kCcStandbyWidth    = 634;
+constexpr uint32_t kCcStandbyHeight   = 566;
+
+uint32_t fit_image_scale(uint32_t source_width, uint32_t source_height, uint32_t max_width, uint32_t max_height)
+{
+    if (source_width == 0 || source_height == 0 || max_width == 0 || max_height == 0) {
+        return 256;
+    }
+
+    const uint32_t width_scale  = max_width * 256 / source_width;
+    const uint32_t height_scale = max_height * 256 / source_height;
+    return std::max<uint32_t>(1, std::min(width_scale, height_scale));
+}
+}  // namespace
 
 LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
 LV_FONT_DECLARE(BUILTIN_ICON_FONT);
@@ -266,7 +288,18 @@ void StackChanAvatarDisplay::SetupUI()
         }
     });
 
+    agent_reading_image_   = assets::get_image("ccreading.png");
+    agent_listening_image_ = assets::get_image("cclis.png");
+    agent_standby_image_   = assets::get_image("ccflo.png");
+    agent_avatar_image_ready_ =
+        agent_reading_image_.data_size != 0 && agent_listening_image_.data_size != 0 && agent_standby_image_.data_size != 0;
+    if (agent_avatar_image_ready_) {
+        agent_avatar_image_ = lv_image_create(avatar->getPanel()->get());
+        lv_obj_add_flag(agent_avatar_image_, LV_OBJ_FLAG_HIDDEN);
+    }
+
     stackchan.attachAvatar(std::move(avatar));
+    SetAgentAvatarImage(AgentAvatarImageMode::Standby);
     stackchan.addModifier(std::make_unique<BreathModifier>());
     blink_modifier_id_ = stackchan.addModifier(std::make_unique<BlinkModifier>());
     stackchan.addModifier(std::make_unique<HeadPetModifier>());
@@ -316,6 +349,60 @@ void StackChanAvatarDisplay::CreateIdleMotionModifier()
             idle_motion_modifier_id_ = stackchan.addModifier(std::make_unique<IdleMotionModifier>());
             return;
     }
+}
+
+void StackChanAvatarDisplay::SetDefaultAvatarFaceVisible(bool visible)
+{
+    auto& stackchan = GetStackChan();
+    if (!stackchan.hasAvatar()) {
+        return;
+    }
+
+    auto& avatar = stackchan.avatar();
+    avatar.leftEye().setVisible(visible);
+    avatar.rightEye().setVisible(visible);
+    avatar.mouth().setVisible(visible);
+}
+
+void StackChanAvatarDisplay::SetAgentAvatarImage(AgentAvatarImageMode mode)
+{
+    if (agent_avatar_image_ == nullptr || !agent_avatar_image_ready_) {
+        SetDefaultAvatarFaceVisible(true);
+        return;
+    }
+
+    const lv_image_dsc_t* image = &agent_standby_image_;
+    uint32_t source_width       = kCcStandbyWidth;
+    uint32_t source_height      = kCcStandbyHeight;
+
+    switch (mode) {
+        case AgentAvatarImageMode::Listening:
+            image         = &agent_listening_image_;
+            source_width  = kCcListeningWidth;
+            source_height = kCcListeningHeight;
+            break;
+        case AgentAvatarImageMode::Reading:
+            image         = &agent_reading_image_;
+            source_width  = kCcReadingWidth;
+            source_height = kCcReadingHeight;
+            break;
+        case AgentAvatarImageMode::Standby:
+        default:
+            break;
+    }
+
+    if (image->data_size == 0 || image->data == nullptr) {
+        SetDefaultAvatarFaceVisible(true);
+        lv_obj_add_flag(agent_avatar_image_, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+
+    lv_image_set_src(agent_avatar_image_, image);
+    lv_image_set_scale(agent_avatar_image_, fit_image_scale(source_width, source_height, width_, height_));
+    lv_obj_align(agent_avatar_image_, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_remove_flag(agent_avatar_image_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_background(agent_avatar_image_);
+    SetDefaultAvatarFaceVisible(false);
 }
 
 void StackChanAvatarDisplay::SetEmotion(const char* emotion)
@@ -397,6 +484,7 @@ void StackChanAvatarDisplay::SetChatMessage(const char* role, const char* conten
         stackchan.avatar().setSpeech(content);
     } else if (strcmp(role, "assistant") == 0) {
         stackchan.avatar().setSpeech(content);
+        SetAgentAvatarImage(AgentAvatarImageMode::Reading);
     }
 }
 
@@ -496,6 +584,8 @@ void StackChanAvatarDisplay::SetStatus(const char* status)
     bool is_listening = false;
 
     if (strcmp(status, Lang::Strings::LISTENING) == 0) {
+        is_listening = true;
+
         if (speaking_modifier_id_ >= 0) {
             // Start speaking
             stackchan.removeModifier(speaking_modifier_id_);
@@ -505,6 +595,7 @@ void StackChanAvatarDisplay::SetStatus(const char* status)
 
         GetHAL().setRgbColor(0, 0, 50, 0);
         GetHAL().refreshRgb();
+        SetAgentAvatarImage(AgentAvatarImageMode::Listening);
 
     } else if (strcmp(status, Lang::Strings::STANDBY) == 0) {
         _is_xiaozhi_ready = true;
@@ -517,6 +608,7 @@ void StackChanAvatarDisplay::SetStatus(const char* status)
         }
 
         is_idle = true;
+        SetAgentAvatarImage(AgentAvatarImageMode::Standby);
 
         GetHAL().setRgbColor(0, 0, 0, 0);
         GetHAL().refreshRgb();
@@ -528,6 +620,7 @@ void StackChanAvatarDisplay::SetStatus(const char* status)
 
         GetHAL().setRgbColor(0, 0, 0, 50);
         GetHAL().refreshRgb();
+        SetAgentAvatarImage(AgentAvatarImageMode::Reading);
     } else {
         avatar.setSpeech(status);
     }
