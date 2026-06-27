@@ -256,6 +256,28 @@ index 3692e0c..7bfbc5c 100644
      
      // Strategy instance
      std::unique_ptr<AssetStrategy> strategy_;
+diff --git a/main/audio/audio_codec.cc b/main/audio/audio_codec.cc
+index 03e2baa..dbd010c 100644
+--- a/main/audio/audio_codec.cc
++++ b/main/audio/audio_codec.cc
+@@ -30,11 +30,14 @@ void AudioCodec::Start() {
+     Settings settings("audio", false);
+     output_volume_ = settings.GetInt("output_volume", output_volume_);
+     if (output_volume_ <= 0) {
+-        ESP_LOGW(TAG, "Output volume value (%d) is too small, setting to default (10)", output_volume_);
+-        output_volume_ = 10;
++        ESP_LOGW(TAG, "Output volume value (%d) is too small, setting to default (60)", output_volume_);
++        output_volume_ = 60;
++    } else if (output_volume_ < 40) {
++        ESP_LOGW(TAG, "Output volume value (%d) is below audible startup level, using 60", output_volume_);
++        output_volume_ = 60;
+     }
+ 
+-    ESP_LOGI(TAG, "Audio codec started");
++    ESP_LOGI(TAG, "Audio codec started, output volume: %d", output_volume_);
+ }
+ 
+ void AudioCodec::SetOutputVolume(int volume) {
 diff --git a/main/boards/common/i2c_device.cc b/main/boards/common/i2c_device.cc
 index 835997d..ea50d51 100644
 --- a/main/boards/common/i2c_device.cc
