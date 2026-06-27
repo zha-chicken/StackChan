@@ -19,8 +19,8 @@ static const Vector2 _screen_size               = {320, 240};
 static const Vector2 _logo_size                 = {112, 100};
 static const int _logo_id                       = 666;
 static const uint32_t _bg_color = 0x000000;
-static const uint32_t _ccflorb_width            = 1327;
-static const uint32_t _ccflorb_height           = 1185;
+static const uint32_t _ccflorb_width            = 268;
+static const uint32_t _ccflorb_height           = 240;
 
 static uint32_t fit_image_scale(uint32_t source_width, uint32_t source_height, uint32_t max_width, uint32_t max_height)
 {

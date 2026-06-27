@@ -26,12 +26,12 @@ using namespace stackchan::avatar;
 #define TAG "StackChanAvatarDisplay"
 
 namespace {
-constexpr uint32_t kCcReadingWidth    = 510;
-constexpr uint32_t kCcReadingHeight   = 374;
-constexpr uint32_t kCcListeningWidth  = 614;
-constexpr uint32_t kCcListeningHeight = 434;
-constexpr uint32_t kCcStandbyWidth    = 1327;
-constexpr uint32_t kCcStandbyHeight   = 1185;
+constexpr uint32_t kCcReadingWidth    = 320;
+constexpr uint32_t kCcReadingHeight   = 234;
+constexpr uint32_t kCcListeningWidth  = 320;
+constexpr uint32_t kCcListeningHeight = 226;
+constexpr uint32_t kCcStandbyWidth    = 268;
+constexpr uint32_t kCcStandbyHeight   = 240;
 
 uint32_t fit_image_scale(uint32_t source_width, uint32_t source_height, uint32_t max_width, uint32_t max_height)
 {
