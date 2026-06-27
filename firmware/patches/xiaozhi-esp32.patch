@@ -1,5 +1,5 @@
 diff --git a/main/application.cc b/main/application.cc
-index d69d43d..2b1bdf7 100644
+index d69d43d..9fdc1f1 100644
 --- a/main/application.cc
 +++ b/main/application.cc
 @@ -9,6 +9,7 @@
@@ -25,7 +25,7 @@ index d69d43d..2b1bdf7 100644
          // No new version, mark the current version as valid
          ota_->MarkCurrentVersionValid();
 +        if (ota_->HasAvatarUrl()) {
-+            haolab::UserAvatarSync::SyncFromUrl(ota_->GetAvatarUrl());
++            ESP_LOGI(TAG, "Remote avatar sync is disabled; keeping local avatar assets");
 +        }
          if (!ota_->HasActivationCode() && !ota_->HasActivationChallenge()) {
              // Exit the loop if done checking new version

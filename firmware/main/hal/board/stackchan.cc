@@ -499,6 +499,7 @@ public:
         InitializeAxp2101();
         InitializePowerSaveTimer();
         InitializeAw9523();
+        aw9523_->ResetAw88298();
         I2cDetect();
         InitializeSpi();
         InitializeIli9342Display();
