@@ -347,3 +347,16 @@ index 1e5d687..52e19d2 100644
      std::string activation_challenge_;
      std::string serial_number_;
      int activation_timeout_ms_ = 30000;
+diff --git a/scripts/build_default_assets.py b/scripts/build_default_assets.py
+index 9ca1464..2f462f9 100755
+--- a/scripts/build_default_assets.py
++++ b/scripts/build_default_assets.py
+@@ -329,7 +329,7 @@ def generate_config_json(build_dir, assets_dir):
+         "assets_path": assets_dir,
+         "image_file": os.path.join(build_dir, "output", "assets.bin"),
+         "lvgl_ver": "9.3.0",
+-        "assets_size": "0x400000",
++        "assets_size": "0x500000",
+         "support_format": ".png, .gif, .jpg, .bin, .json",
+         "name_length": "32",
+         "split_height": "0",
