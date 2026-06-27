@@ -293,10 +293,8 @@ void StackChanAvatarDisplay::SetupUI()
     agent_standby_image_   = assets::get_image("ccflorb.png");
     agent_avatar_image_ready_ =
         agent_reading_image_.data_size != 0 && agent_listening_image_.data_size != 0 && agent_standby_image_.data_size != 0;
-    if (agent_avatar_image_ready_) {
-        agent_avatar_image_ = lv_image_create(avatar->getPanel()->get());
-        lv_obj_add_flag(agent_avatar_image_, LV_OBJ_FLAG_HIDDEN);
-    }
+    agent_avatar_image_ = lv_image_create(avatar->getPanel()->get());
+    lv_obj_add_flag(agent_avatar_image_, LV_OBJ_FLAG_HIDDEN);
 
     stackchan.attachAvatar(std::move(avatar));
     SetAgentAvatarImage(AgentAvatarImageMode::Standby);
@@ -366,8 +364,30 @@ void StackChanAvatarDisplay::SetDefaultAvatarFaceVisible(bool visible)
 
 void StackChanAvatarDisplay::SetAgentAvatarImage(AgentAvatarImageMode mode)
 {
-    if (agent_avatar_image_ == nullptr || !agent_avatar_image_ready_) {
+    agent_avatar_image_mode_ = mode;
+    if (agent_avatar_image_ == nullptr) {
         SetDefaultAvatarFaceVisible(true);
+        return;
+    }
+
+    if (user_avatar_image_cached_) {
+        auto image = user_avatar_image_cached_->image_dsc();
+        if (image != nullptr && image->data_size != 0 && image->data != nullptr) {
+            const uint32_t source_width  = image->header.w > 0 ? image->header.w : 172;
+            const uint32_t source_height = image->header.h > 0 ? image->header.h : 172;
+            lv_image_set_src(agent_avatar_image_, image);
+            lv_image_set_scale(agent_avatar_image_, fit_image_scale(source_width, source_height, width_, height_));
+            lv_obj_align(agent_avatar_image_, LV_ALIGN_CENTER, 0, 0);
+            lv_obj_remove_flag(agent_avatar_image_, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_move_background(agent_avatar_image_);
+            SetDefaultAvatarFaceVisible(false);
+            return;
+        }
+    }
+
+    if (!agent_avatar_image_ready_) {
+        SetDefaultAvatarFaceVisible(true);
+        lv_obj_add_flag(agent_avatar_image_, LV_OBJ_FLAG_HIDDEN);
         return;
     }
 
@@ -403,6 +423,25 @@ void StackChanAvatarDisplay::SetAgentAvatarImage(AgentAvatarImageMode mode)
     lv_obj_remove_flag(agent_avatar_image_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_background(agent_avatar_image_);
     SetDefaultAvatarFaceVisible(false);
+}
+
+void StackChanAvatarDisplay::SetUserAvatar(std::unique_ptr<LvglImage> image)
+{
+    auto& stackchan = GetStackChan();
+    if (!stackchan.hasAvatar()) {
+        ESP_LOGW(TAG, "SetUserAvatar ignored before avatar setup");
+        return;
+    }
+
+    DisplayLockGuard lock(this);
+    if (agent_avatar_image_ == nullptr) {
+        agent_avatar_image_ = lv_image_create(lv_screen_active());
+        lv_obj_add_flag(agent_avatar_image_, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    user_avatar_image_cached_ = std::move(image);
+    SetAgentAvatarImage(agent_avatar_image_mode_);
+    ESP_LOGI(TAG, "User avatar slot updated");
 }
 
 void StackChanAvatarDisplay::SetEmotion(const char* emotion)

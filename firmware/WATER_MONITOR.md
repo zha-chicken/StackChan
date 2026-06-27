@@ -50,6 +50,7 @@ This build uses the upstream xiaozhi OTA and WebSocket protocol expected by Hao 
 - The OTA response provides the device WebSocket URL, token, and protocol version.
 - The firmware sends the required WebSocket headers: `Authorization`, `Device-Id`, `Client-Id`, and `Protocol-Version`.
 - If an older device has `wifi/ota_url` set to the legacy tenclass or overseas endpoint in NVS, the firmware ignores that value and uses the compiled body endpoint instead.
+- When the bound profile has an avatar, the firmware reads OTA `avatar_url`, requests the 172x172 RGB565 variant, and overlays it on the StackChan avatar screen.
 - Pairing codes from OTA activation or WebSocket `alert` messages are shown in the StackChan speech bubble.
 
 To connect:

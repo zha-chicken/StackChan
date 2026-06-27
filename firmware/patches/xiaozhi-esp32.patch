@@ -1,8 +1,16 @@
 diff --git a/main/application.cc b/main/application.cc
-index d69d43d..f06d7e8 100644
+index d69d43d..2b1bdf7 100644
 --- a/main/application.cc
 +++ b/main/application.cc
-@@ -433,10 +433,8 @@ void Application::CheckNewVersion() {
+@@ -9,6 +9,7 @@
+ #include "mcp_server.h"
+ #include "assets.h"
+ #include "settings.h"
++#include "haolab/user_avatar_sync.h"
+ 
+ #include <cstring>
+ #include <esp_log.h>
+@@ -433,14 +434,15 @@ void Application::CheckNewVersion() {
          retry_delay = 10; // Reset retry delay
  
          if (ota_->HasNewVersion()) {
@@ -15,7 +23,14 @@ index d69d43d..f06d7e8 100644
          }
  
          // No new version, mark the current version as valid
-@@ -610,33 +610,15 @@ void Application::InitializeProtocol() {
+         ota_->MarkCurrentVersionValid();
++        if (ota_->HasAvatarUrl()) {
++            haolab::UserAvatarSync::SyncFromUrl(ota_->GetAvatarUrl());
++        }
+         if (!ota_->HasActivationCode() && !ota_->HasActivationChallenge()) {
+             // Exit the loop if done checking new version
+             break;
+@@ -610,33 +612,15 @@ void Application::InitializeProtocol() {
  }
  
  void Application::ShowActivationCode(const std::string& code, const std::string& message) {
@@ -45,19 +60,23 @@ index d69d43d..f06d7e8 100644
 -        if (it != digit_sounds.end()) {
 -            audio_service_.PlaySound(it->sound);
 -        }
--    }
 +    std::string text = message;
 +    if (text.empty()) {
 +        text = "Pairing code: " + code;
 +    } else if (!code.empty() && text.find(code) == std::string::npos) {
 +        text += "\nCode: " + code;
-+    }
+     }
 +
 +    auto display = Board::GetInstance().GetDisplay();
 +    display->SetChatMessage("system", text.c_str());
  }
  
  void Application::Alert(const char* status, const char* message, const char* emotion, const std::string_view& sound) {
+@@ -1116,4 +1100,3 @@ void Application::ResetProtocol() {
+         protocol_.reset();
+     });
+ }
+-
 diff --git a/main/assets.cc b/main/assets.cc
 index ad61944..6b84daf 100644
 --- a/main/assets.cc
@@ -264,7 +283,7 @@ index 7bc917b..874b137 100644
  
  #endif // I2C_DEVICE_H
 diff --git a/main/ota.cc b/main/ota.cc
-index bcc0dc5..5122f05 100644
+index bcc0dc5..d3cd993 100644
 --- a/main/ota.cc
 +++ b/main/ota.cc
 @@ -46,7 +46,9 @@ Ota::~Ota() {
@@ -278,3 +297,53 @@ index bcc0dc5..5122f05 100644
          url = CONFIG_OTA_URL;
      }
      return url;
+@@ -119,6 +121,15 @@ esp_err_t Ota::CheckVersion() {
+         return ESP_ERR_INVALID_RESPONSE;
+     }
+ 
++    has_avatar_url_ = false;
++    avatar_url_.clear();
++    cJSON* avatar_url = cJSON_GetObjectItem(root, "avatar_url");
++    if (cJSON_IsString(avatar_url) && avatar_url->valuestring != nullptr && avatar_url->valuestring[0] != '\0') {
++        avatar_url_ = avatar_url->valuestring;
++        has_avatar_url_ = true;
++        ESP_LOGI(TAG, "Avatar URL received: %s", avatar_url_.c_str());
++    }
++
+     has_activation_code_ = false;
+     has_activation_challenge_ = false;
+     cJSON *activation = cJSON_GetObjectItem(root, "activation");
+diff --git a/main/ota.h b/main/ota.h
+index 1e5d687..52e19d2 100644
+--- a/main/ota.h
++++ b/main/ota.h
+@@ -20,6 +20,7 @@ public:
+     bool HasWebsocketConfig() { return has_websocket_config_; }
+     bool HasActivationCode() { return has_activation_code_; }
+     bool HasServerTime() { return has_server_time_; }
++    bool HasAvatarUrl() const { return has_avatar_url_; }
+     bool StartUpgrade(std::function<void(int progress, size_t speed)> callback);
+     static bool Upgrade(const std::string& firmware_url, std::function<void(int progress, size_t speed)> callback);
+     void MarkCurrentVersionValid();
+@@ -29,6 +30,7 @@ public:
+     const std::string& GetFirmwareUrl() const { return firmware_url_; }
+     const std::string& GetActivationMessage() const { return activation_message_; }
+     const std::string& GetActivationCode() const { return activation_code_; }
++    const std::string& GetAvatarUrl() const { return avatar_url_; }
+     std::string GetCheckVersionUrl();
+ 
+ private:
+@@ -39,11 +41,13 @@ private:
+     bool has_websocket_config_ = false;
+     bool has_server_time_ = false;
+     bool has_activation_code_ = false;
++    bool has_avatar_url_ = false;
+     bool has_serial_number_ = false;
+     bool has_activation_challenge_ = false;
+     std::string current_version_;
+     std::string firmware_version_;
+     std::string firmware_url_;
++    std::string avatar_url_;
+     std::string activation_challenge_;
+     std::string serial_number_;
+     int activation_timeout_ms_ = 30000;

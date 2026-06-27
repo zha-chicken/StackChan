@@ -32,10 +32,12 @@ private:
     };
 
     lv_obj_t* agent_avatar_image_             = nullptr;
+    std::unique_ptr<LvglImage> user_avatar_image_cached_ = nullptr;
     lv_image_dsc_t agent_reading_image_       = {};
     lv_image_dsc_t agent_listening_image_     = {};
     lv_image_dsc_t agent_standby_image_       = {};
     bool agent_avatar_image_ready_            = false;
+    AgentAvatarImageMode agent_avatar_image_mode_ = AgentAvatarImageMode::Standby;
 
     void CreateIdleMotionModifier();
     void SetAgentAvatarImage(AgentAvatarImageMode mode);
@@ -62,6 +64,7 @@ public:
     virtual void SetTheme(Theme* theme) override;
     virtual void SetStatus(const char* status) override;
     virtual void ShowNotification(const char* notification, int duration_ms = 3000) override;
+    void SetUserAvatar(std::unique_ptr<LvglImage> image);
 
     void LvglLock();
     void LvglUnlock();
