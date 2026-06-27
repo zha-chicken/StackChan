@@ -15,7 +15,7 @@ index d69d43d..f06d7e8 100644
          }
  
          // No new version, mark the current version as valid
-@@ -610,33 +610,36 @@ void Application::InitializeProtocol() {
+@@ -610,33 +610,15 @@ void Application::InitializeProtocol() {
  }
  
  void Application::ShowActivationCode(const std::string& code, const std::string& message) {
@@ -46,36 +46,15 @@ index d69d43d..f06d7e8 100644
 -            audio_service_.PlaySound(it->sound);
 -        }
 -    }
-+    // struct digit_sound {
-+    //     char digit;
-+    //     const std::string_view& sound;
-+    // };
-+    // static const std::array<digit_sound, 10> digit_sounds{{
-+    //     digit_sound{'0', Lang::Sounds::OGG_0},
-+    //     digit_sound{'1', Lang::Sounds::OGG_1}, 
-+    //     digit_sound{'2', Lang::Sounds::OGG_2},
-+    //     digit_sound{'3', Lang::Sounds::OGG_3},
-+    //     digit_sound{'4', Lang::Sounds::OGG_4},
-+    //     digit_sound{'5', Lang::Sounds::OGG_5},
-+    //     digit_sound{'6', Lang::Sounds::OGG_6},
-+    //     digit_sound{'7', Lang::Sounds::OGG_7},
-+    //     digit_sound{'8', Lang::Sounds::OGG_8},
-+    //     digit_sound{'9', Lang::Sounds::OGG_9}
-+    // }};
-+
-+    // // This sentence uses 9KB of SRAM, so we need to wait for it to finish
-+    // Alert(Lang::Strings::ACTIVATION, message.c_str(), "link", Lang::Sounds::OGG_ACTIVATION);
-+
-+    // for (const auto& digit : code) {
-+    //     auto it = std::find_if(digit_sounds.begin(), digit_sounds.end(),
-+    //         [digit](const digit_sound& ds) { return ds.digit == digit; });
-+    //     if (it != digit_sounds.end()) {
-+    //         audio_service_.PlaySound(it->sound);
-+    //     }
-+    // }
++    std::string text = message;
++    if (text.empty()) {
++        text = "Pairing code: " + code;
++    } else if (!code.empty() && text.find(code) == std::string::npos) {
++        text += "\nCode: " + code;
++    }
 +
 +    auto display = Board::GetInstance().GetDisplay();
-+    display->SetChatMessage("system", "Please bind and set up in the mobile app.");
++    display->SetChatMessage("system", text.c_str());
  }
  
  void Application::Alert(const char* status, const char* message, const char* emotion, const std::string_view& sound) {
@@ -284,3 +263,16 @@ index 7bc917b..874b137 100644
  };
  
  #endif // I2C_DEVICE_H
+diff --git a/main/ota.cc b/main/ota.cc
+index bcc0dc5..a99b96b 100644
+--- a/main/ota.cc
++++ b/main/ota.cc
+@@ -46,7 +46,7 @@ Ota::~Ota() {
+ std::string Ota::GetCheckVersionUrl() {
+     Settings settings("wifi", false);
+     std::string url = settings.GetString("ota_url");
+-    if (url.empty()) {
++    if (url.empty() || url.find("api.tenclass.net/xiaozhi/ota") != std::string::npos) {
+         url = CONFIG_OTA_URL;
+     }
+     return url;

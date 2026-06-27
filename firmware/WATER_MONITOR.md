@@ -42,6 +42,29 @@ If `empty_cup_set` is false:
 
 Use `self.water.set_refill_baseline` when the user says they refilled water or wants to reset current-container tracking. Use `self.water.get_status` when the user asks how much water was consumed, how much water is currently in the cup/bottle, or whether they have reached the daily goal.
 
+## Hao Lab Body Connection
+
+This build uses the upstream xiaozhi OTA and WebSocket protocol expected by Hao Lab body connection.
+
+- Default OTA endpoint: `https://haolab.ai/agents/api/ota/`
+- The OTA response provides the device WebSocket URL, token, and protocol version.
+- The firmware sends the required WebSocket headers: `Authorization`, `Device-Id`, `Client-Id`, and `Protocol-Version`.
+- If an older device has `wifi/ota_url` set to the legacy tenclass endpoint in NVS, the firmware ignores that value and uses the compiled Hao Lab endpoint instead.
+- Pairing codes from OTA activation or WebSocket `alert` messages are shown in the StackChan speech bubble.
+
+To connect:
+
+1. Flash this firmware without erasing NVS if you want to keep Wi-Fi and water calibration.
+2. Open `AI.AGENT` on the StackChan launcher, or enable `Start AI Agent on boot` in Setup for a dedicated water monitor.
+3. Open Hao Lab body connection at `https://haolab.ai/agents/dashboard/ta/body`.
+4. Enter the 6-digit pairing code shown on the StackChan screen.
+
+For the domestic deployment, create `firmware/sdkconfig.defaults.local` with:
+
+```ini
+CONFIG_OTA_URL="https://wexiyi.com/agents/api/ota/"
+```
+
 ## Build And Flash
 
 Fetch dependencies first if this is a fresh clone:

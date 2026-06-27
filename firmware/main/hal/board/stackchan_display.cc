@@ -426,6 +426,8 @@ void StackChanAvatarDisplay::SetEmotion(const char* emotion)
         avatar.setEmotion(Emotion::Happy);
     } else if (strcmp(emotion, "laughing") == 0) {
         avatar.setEmotion(Emotion::Happy);
+    } else if (strcmp(emotion, "link") == 0) {
+        avatar.setEmotion(Emotion::Happy);
     } else if (strcmp(emotion, "angry") == 0) {
         avatar.setEmotion(Emotion::Angry);
     } else if (strcmp(emotion, "sad") == 0) {
@@ -452,6 +454,10 @@ void StackChanAvatarDisplay::SetEmotion(const char* emotion)
         motion.pitchServo().moveWithSpeed(0, 80);
 
     } else if (strcmp(emotion, "doubtful") == 0) {
+        avatar.setEmotion(Emotion::Doubt);
+    } else if (strcmp(emotion, "thinking") == 0) {
+        avatar.setEmotion(Emotion::Doubt);
+    } else if (strcmp(emotion, "confused") == 0) {
         avatar.setEmotion(Emotion::Doubt);
     } else {
         ESP_LOGW(TAG, "Unknown emotion: %s, using NEUTRAL", emotion);
@@ -663,4 +669,6 @@ void StackChanAvatarDisplay::SetStatus(const char* status)
 
 void StackChanAvatarDisplay::ShowNotification(const char* notification, int duration_ms)
 {
+    (void)duration_ms;
+    SetChatMessage("system", notification ? notification : "");
 }
