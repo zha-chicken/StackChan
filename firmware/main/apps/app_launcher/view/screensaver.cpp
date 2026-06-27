@@ -19,8 +19,8 @@ static const Vector2 _screen_size               = {320, 240};
 static const Vector2 _logo_size                 = {112, 100};
 static const int _logo_id                       = 666;
 static const uint32_t _bg_color = 0x000000;
-static const uint32_t _ccflo_width              = 634;
-static const uint32_t _ccflo_height             = 566;
+static const uint32_t _ccflorb_width            = 1327;
+static const uint32_t _ccflorb_height           = 1185;
 
 static uint32_t fit_image_scale(uint32_t source_width, uint32_t source_height, uint32_t max_width, uint32_t max_height)
 {
@@ -57,12 +57,12 @@ void Screensaver::onInit()
     _logo->setBorderWidth(0);
     _logo->setRadius(0);
 
-    _logo_image_dsc = assets::get_image("ccflo.png");
+    _logo_image_dsc = assets::get_image("ccflorb.png");
     if (_logo_image_dsc.data_size != 0) {
         _logo_image = std::make_unique<Image>(_logo->get());
         _logo_image->setSrc(&_logo_image_dsc);
         _logo_image->setScale(
-            fit_image_scale(_ccflo_width, _ccflo_height, _logo_size.width, _logo_size.height));
+            fit_image_scale(_ccflorb_width, _ccflorb_height, _logo_size.width, _logo_size.height));
         _logo_image->align(LV_ALIGN_CENTER, 0, 0);
     }
 }

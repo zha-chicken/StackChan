@@ -30,8 +30,8 @@ constexpr uint32_t kCcReadingWidth    = 510;
 constexpr uint32_t kCcReadingHeight   = 374;
 constexpr uint32_t kCcListeningWidth  = 614;
 constexpr uint32_t kCcListeningHeight = 434;
-constexpr uint32_t kCcStandbyWidth    = 634;
-constexpr uint32_t kCcStandbyHeight   = 566;
+constexpr uint32_t kCcStandbyWidth    = 1327;
+constexpr uint32_t kCcStandbyHeight   = 1185;
 
 uint32_t fit_image_scale(uint32_t source_width, uint32_t source_height, uint32_t max_width, uint32_t max_height)
 {
@@ -290,7 +290,7 @@ void StackChanAvatarDisplay::SetupUI()
 
     agent_reading_image_   = assets::get_image("ccreading.png");
     agent_listening_image_ = assets::get_image("cclis.png");
-    agent_standby_image_   = assets::get_image("ccflo.png");
+    agent_standby_image_   = assets::get_image("ccflorb.png");
     agent_avatar_image_ready_ =
         agent_reading_image_.data_size != 0 && agent_listening_image_.data_size != 0 && agent_standby_image_.data_size != 0;
     if (agent_avatar_image_ready_) {
