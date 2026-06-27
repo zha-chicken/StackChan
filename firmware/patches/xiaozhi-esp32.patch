@@ -264,15 +264,17 @@ index 7bc917b..874b137 100644
  
  #endif // I2C_DEVICE_H
 diff --git a/main/ota.cc b/main/ota.cc
-index bcc0dc5..a99b96b 100644
+index bcc0dc5..5122f05 100644
 --- a/main/ota.cc
 +++ b/main/ota.cc
-@@ -46,7 +46,7 @@ Ota::~Ota() {
+@@ -46,7 +46,9 @@ Ota::~Ota() {
  std::string Ota::GetCheckVersionUrl() {
      Settings settings("wifi", false);
      std::string url = settings.GetString("ota_url");
 -    if (url.empty()) {
-+    if (url.empty() || url.find("api.tenclass.net/xiaozhi/ota") != std::string::npos) {
++    if (url.empty() ||
++        url.find("api.tenclass.net/xiaozhi/ota") != std::string::npos ||
++        url.find("haolab.ai/agents/api/ota") != std::string::npos) {
          url = CONFIG_OTA_URL;
      }
      return url;

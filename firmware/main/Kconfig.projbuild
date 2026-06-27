@@ -15,7 +15,7 @@ menu "Xiaozhi Assistant"
 
 config OTA_URL
     string "Default OTA URL"
-    default "https://haolab.ai/agents/api/ota/"
+    default "https://wexiyi.com/agents/api/ota/"
     help
         The application will access this URL to check for new firmwares and server address.
 

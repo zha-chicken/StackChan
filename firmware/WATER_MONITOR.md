@@ -46,23 +46,23 @@ Use `self.water.set_refill_baseline` when the user says they refilled water or w
 
 This build uses the upstream xiaozhi OTA and WebSocket protocol expected by Hao Lab body connection.
 
-- Default OTA endpoint: `https://haolab.ai/agents/api/ota/`
+- Default OTA endpoint: `https://wexiyi.com/agents/api/ota/`
 - The OTA response provides the device WebSocket URL, token, and protocol version.
 - The firmware sends the required WebSocket headers: `Authorization`, `Device-Id`, `Client-Id`, and `Protocol-Version`.
-- If an older device has `wifi/ota_url` set to the legacy tenclass endpoint in NVS, the firmware ignores that value and uses the compiled Hao Lab endpoint instead.
+- If an older device has `wifi/ota_url` set to the legacy tenclass or overseas endpoint in NVS, the firmware ignores that value and uses the compiled body endpoint instead.
 - Pairing codes from OTA activation or WebSocket `alert` messages are shown in the StackChan speech bubble.
 
 To connect:
 
 1. Flash this firmware without erasing NVS if you want to keep Wi-Fi and water calibration.
 2. Open `AI.AGENT` on the StackChan launcher, or enable `Start AI Agent on boot` in Setup for a dedicated water monitor.
-3. Open Hao Lab body connection at `https://haolab.ai/agents/dashboard/ta/body`.
+3. Open the body connection page at `https://wexiyi.com/agents/dashboard/ta/body`.
 4. Enter the 6-digit pairing code shown on the StackChan screen.
 
-For the domestic deployment, create `firmware/sdkconfig.defaults.local` with:
+For the overseas deployment, create `firmware/sdkconfig.defaults.local` with:
 
 ```ini
-CONFIG_OTA_URL="https://wexiyi.com/agents/api/ota/"
+CONFIG_OTA_URL="https://haolab.ai/agents/api/ota/"
 ```
 
 ## Build And Flash
