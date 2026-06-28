@@ -137,6 +137,8 @@ void Hal::updateHeapStatusLog()
 #include <apps/common/common.h>
 #include <assets/assets.h>
 
+extern "C" void stackchan_sound_localizer_update_motion();
+
 void Hal::xiaozhi_board_init()
 {
     mclog::tagInfo(_tag, "xiaozhi board init");
@@ -160,6 +162,7 @@ static void _stackchan_update_task(void* param)
             vTaskDelay(pdMS_TO_TICKS(100));
         }
 
+        stackchan_sound_localizer_update_motion();
         GetStackChan().update();
 
         if (!hal_bridge::is_xiaozhi_ready()) {

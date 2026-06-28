@@ -459,7 +459,7 @@ void StackChanAvatarDisplay::SetEmotion(const char* emotion)
     auto& avatar = stackchan.avatar();
 
     // Map emotion string to stackchan::Emotion
-    if (strcmp(emotion, "neutral") == 0) {
+    if (strcmp(emotion, "neutral") == 0 || strcmp(emotion, "speaking") == 0) {
         avatar.setEmotion(Emotion::Neutral);
     } else if (strcmp(emotion, "happy") == 0) {
         avatar.setEmotion(Emotion::Happy);
@@ -479,11 +479,12 @@ void StackChanAvatarDisplay::SetEmotion(const char* emotion)
         is_sleeping_ = true;
         // avatar.mouth().setWeight(10);
 
-        // Stop idle motion
-        ESP_LOGW(TAG, "Stop idle motion");
         if (idle_motion_modifier_id_ >= 0) {
+            ESP_LOGW(TAG, "Stop idle motion");
             stackchan.removeModifier(idle_motion_modifier_id_);
             idle_motion_modifier_id_ = -1;
+        }
+        if (idle_expression_modifier_id_ >= 0) {
             stackchan.removeModifier(idle_expression_modifier_id_);
             idle_expression_modifier_id_ = -1;
         }
@@ -671,22 +672,34 @@ void StackChanAvatarDisplay::SetStatus(const char* status)
     }
 
     if (is_idle) {
-        // Start idle motion
-        ESP_LOGW(TAG, "Start idle motion");
-        if (idle_motion_modifier_id_ < 0) {
-            if (idle_motion_level_ > 0) {
+        if (idle_motion_level_ > 0) {
+            if (idle_motion_modifier_id_ < 0) {
+                ESP_LOGW(TAG, "Start idle motion");
                 CreateIdleMotionModifier();
             }
-            idle_expression_modifier_id_ = stackchan.addModifier(std::make_unique<IdleExpressionModifier>());
+            if (idle_expression_modifier_id_ < 0) {
+                idle_expression_modifier_id_ = stackchan.addModifier(std::make_unique<IdleExpressionModifier>());
+            }
+        } else {
+            if (idle_motion_modifier_id_ >= 0) {
+                ESP_LOGW(TAG, "Stop idle motion");
+                stackchan.removeModifier(idle_motion_modifier_id_);
+                idle_motion_modifier_id_ = -1;
+            }
+            if (idle_expression_modifier_id_ >= 0) {
+                stackchan.removeModifier(idle_expression_modifier_id_);
+                idle_expression_modifier_id_ = -1;
+            }
         }
 
         _is_xiaozhi_idle = true;
     } else {
-        // Stop idle motion
-        ESP_LOGW(TAG, "Stop idle motion");
         if (idle_motion_modifier_id_ >= 0) {
+            ESP_LOGW(TAG, "Stop idle motion");
             stackchan.removeModifier(idle_motion_modifier_id_);
             idle_motion_modifier_id_ = -1;
+        }
+        if (idle_expression_modifier_id_ >= 0) {
             stackchan.removeModifier(idle_expression_modifier_id_);
             idle_expression_modifier_id_ = -1;
         }

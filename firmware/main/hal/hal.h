@@ -117,7 +117,7 @@ struct UserAccountInfo_t {
 struct XiaozhiConfig_t {
     uint32_t idleShutdownTimeSeconds = 600;
     bool allowShutdownWhenCharging   = false;
-    uint8_t idleRandomMovementLevel  = 2;
+    uint8_t idleRandomMovementLevel  = 0;
     bool startAiAgentOnBoot          = true;
 };
 
@@ -158,6 +158,40 @@ struct OnboardingProfileStatus_t {
     std::string relationshipStyle;
     std::string reminderStyle;
     std::string summary;
+};
+
+/**
+ * @brief Local QWeather configuration. The API key is stored only in NVS.
+ *
+ */
+struct WeatherConfig_t {
+    std::string apiKey;
+    std::string defaultLocation;
+    std::string weatherHost = "devapi.qweather.com";
+    std::string geoHost     = "geoapi.qweather.com";
+    std::string lang        = "zh";
+    std::string unit        = "m";
+};
+
+/**
+ * @brief Approximate device location derived from public IP geolocation.
+ *
+ */
+struct LocationStatus_t {
+    bool valid = false;
+    bool stale = false;
+    std::string source;
+    std::string provider;
+    std::string publicIp;
+    std::string city;
+    std::string region;
+    std::string country;
+    std::string countryCode;
+    std::string latitude;
+    std::string longitude;
+    std::string timezone;
+    std::string accuracy;
+    int updatedUnix = 0;
 };
 
 /**
@@ -267,6 +301,18 @@ public:
     std::string startOnboarding();
     std::string recordOnboardingAnswer(std::string_view answer);
     std::string resetOnboardingProfile();
+
+    /* -------------------------------- Weather -------------------------------- */
+    WeatherConfig_t getWeatherConfig();
+    std::string getCurrentWeatherJson(std::string_view location = "", std::string_view lang = "",
+                                      std::string_view unit = "");
+
+    /* -------------------------------- Location -------------------------------- */
+    LocationStatus_t getLocationStatus();
+    std::string getCurrentLocationJson(bool refresh = false);
+    std::string setManualLocationJson(std::string_view city, std::string_view latitude = "",
+                                      std::string_view longitude = "", std::string_view region = "",
+                                      std::string_view country = "", std::string_view timezone = "");
 
     /* ----------------------------------- BLE ---------------------------------- */
     uitk::Signal<const char*> onBleMotionData;

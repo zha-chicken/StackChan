@@ -4,14 +4,199 @@
  * SPDX-License-Identifier: MIT
  */
 #include "hal.h"
+#include <cJSON.h>
 #include <mooncake_log.h>
 #include <mcp_server.h>
 #include <stackchan/stackchan.h>
 #include <apps/common/common.h>
 
+#include <algorithm>
+#include <cctype>
+#include <cstdio>
+#include <cstdlib>
+#include <ctime>
+#include <string>
+#include <string_view>
+
 using namespace stackchan;
 
 static const std::string_view _tag = "HAL-MCP";
+
+static std::string _json_string(cJSON* object)
+{
+    char* text = cJSON_PrintUnformatted(object);
+    std::string result = text ? text : "{}";
+    cJSON_free(text);
+    return result;
+}
+
+static std::string _format_tm(const tm& value, const char* format)
+{
+    char buffer[40];
+    if (std::strftime(buffer, sizeof(buffer), format, &value) == 0) {
+        return "";
+    }
+    return buffer;
+}
+
+static std::string _format_utc_iso(time_t value)
+{
+    tm utc_tm;
+    gmtime_r(&value, &utc_tm);
+    return _format_tm(utc_tm, "%Y-%m-%dT%H:%M:%SZ");
+}
+
+static std::string _format_offset(int offset_minutes)
+{
+    const char sign = offset_minutes >= 0 ? '+' : '-';
+    int abs_minutes = std::abs(offset_minutes);
+    char buffer[8];
+    std::snprintf(buffer, sizeof(buffer), "%c%02d:%02d", sign, abs_minutes / 60, abs_minutes % 60);
+    return buffer;
+}
+
+static bool _iana_timezone_offset_minutes(std::string_view timezone, int& offset_minutes)
+{
+    if (timezone == "Asia/Shanghai" || timezone == "Asia/Chongqing" || timezone == "Asia/Hong_Kong" ||
+        timezone == "Asia/Taipei" || timezone == "Asia/Macau" || timezone == "Asia/Singapore") {
+        offset_minutes = 8 * 60;
+        return true;
+    }
+    if (timezone == "Asia/Tokyo" || timezone == "Asia/Seoul") {
+        offset_minutes = 9 * 60;
+        return true;
+    }
+    if (timezone == "Asia/Bangkok" || timezone == "Asia/Ho_Chi_Minh" || timezone == "Asia/Jakarta") {
+        offset_minutes = 7 * 60;
+        return true;
+    }
+    if (timezone == "UTC" || timezone == "Etc/UTC" || timezone == "GMT" || timezone == "Etc/GMT") {
+        offset_minutes = 0;
+        return true;
+    }
+    return false;
+}
+
+static bool _posix_timezone_offset_minutes(std::string_view timezone, int& offset_minutes)
+{
+    const auto digit = std::find_if(timezone.begin(), timezone.end(), [](unsigned char ch) {
+        return ch == '+' || ch == '-' || std::isdigit(ch);
+    });
+    if (digit == timezone.end()) {
+        return false;
+    }
+
+    int sign = 1;
+    size_t pos = static_cast<size_t>(digit - timezone.begin());
+    if (timezone[pos] == '+') {
+        sign = 1;
+        ++pos;
+    } else if (timezone[pos] == '-') {
+        sign = -1;
+        ++pos;
+    }
+    if (pos >= timezone.size() || !std::isdigit(static_cast<unsigned char>(timezone[pos]))) {
+        return false;
+    }
+
+    int hours = 0;
+    while (pos < timezone.size() && std::isdigit(static_cast<unsigned char>(timezone[pos]))) {
+        hours = hours * 10 + (timezone[pos] - '0');
+        ++pos;
+    }
+
+    int minutes = 0;
+    if (pos < timezone.size() && timezone[pos] == ':') {
+        ++pos;
+        while (pos < timezone.size() && std::isdigit(static_cast<unsigned char>(timezone[pos]))) {
+            minutes = minutes * 10 + (timezone[pos] - '0');
+            ++pos;
+        }
+    }
+
+    // POSIX TZ uses the inverse sign: CST-8 means UTC+8.
+    offset_minutes = -(sign * (hours * 60 + minutes));
+    return true;
+}
+
+static void _add_local_time_fields(cJSON* root, const char* prefix, time_t now, int offset_minutes)
+{
+    tm local_tm;
+    const time_t shifted = now + offset_minutes * 60;
+    gmtime_r(&shifted, &local_tm);
+
+    cJSON_AddStringToObject(root, (std::string(prefix) + "_datetime").c_str(),
+                            _format_tm(local_tm, "%Y-%m-%d %H:%M:%S").c_str());
+    cJSON_AddStringToObject(root, (std::string(prefix) + "_date").c_str(), _format_tm(local_tm, "%Y-%m-%d").c_str());
+    cJSON_AddStringToObject(root, (std::string(prefix) + "_time").c_str(), _format_tm(local_tm, "%H:%M:%S").c_str());
+    cJSON_AddStringToObject(root, (std::string(prefix) + "_weekday").c_str(), _format_tm(local_tm, "%A").c_str());
+    cJSON_AddNumberToObject(root, (std::string(prefix) + "_weekday_index").c_str(), local_tm.tm_wday);
+}
+
+static std::string _get_current_time_json()
+{
+    const time_t now = std::time(nullptr);
+    const bool synced = now >= 1700000000;
+    const char* env_tz = std::getenv("TZ");
+    const std::string system_tz = env_tz && env_tz[0] ? env_tz : GetHAL().getTimezone();
+    const auto location = GetHAL().getLocationStatus();
+
+    int chosen_offset = 0;
+    std::string chosen_timezone = system_tz;
+    std::string timezone_source = "system";
+    bool offset_known = _posix_timezone_offset_minutes(system_tz, chosen_offset);
+
+    int location_offset = 0;
+    if (!location.timezone.empty() && _iana_timezone_offset_minutes(location.timezone, location_offset)) {
+        chosen_offset = location_offset;
+        chosen_timezone = location.timezone;
+        timezone_source = "location";
+        offset_known = true;
+    }
+
+    tm system_local_tm;
+    localtime_r(&now, &system_local_tm);
+
+    cJSON* root = cJSON_CreateObject();
+    cJSON_AddBoolToObject(root, "ok", synced);
+    cJSON_AddBoolToObject(root, "synced", synced);
+    cJSON_AddNumberToObject(root, "unix_seconds", static_cast<double>(now));
+    cJSON_AddStringToObject(root, "utc_iso", _format_utc_iso(now).c_str());
+    cJSON_AddStringToObject(root, "system_timezone_posix", system_tz.c_str());
+    cJSON_AddStringToObject(root, "system_local_datetime", _format_tm(system_local_tm, "%Y-%m-%d %H:%M:%S").c_str());
+    cJSON_AddStringToObject(root, "system_local_date", _format_tm(system_local_tm, "%Y-%m-%d").c_str());
+    cJSON_AddStringToObject(root, "system_local_time", _format_tm(system_local_tm, "%H:%M:%S").c_str());
+    cJSON_AddStringToObject(root, "system_local_weekday", _format_tm(system_local_tm, "%A").c_str());
+    if (!location.timezone.empty()) {
+        cJSON_AddStringToObject(root, "location_timezone", location.timezone.c_str());
+    }
+    if (!location.city.empty()) {
+        cJSON_AddStringToObject(root, "location_city", location.city.c_str());
+    }
+    cJSON_AddStringToObject(root, "chosen_timezone", chosen_timezone.c_str());
+    cJSON_AddStringToObject(root, "timezone_source", timezone_source.c_str());
+    cJSON_AddBoolToObject(root, "utc_offset_known", offset_known);
+    if (offset_known) {
+        cJSON_AddNumberToObject(root, "utc_offset_minutes", chosen_offset);
+        cJSON_AddStringToObject(root, "utc_offset", _format_offset(chosen_offset).c_str());
+        _add_local_time_fields(root, "local", now, chosen_offset);
+    }
+    if (synced && offset_known) {
+        cJSON_AddStringToObject(
+            root, "assistant_instruction",
+            "Use local_datetime, local_date, local_time, local_weekday and utc_offset as the source of truth for any "
+            "question about current time, today, tomorrow, tonight, or relative time such as 'in two hours'.");
+    } else {
+        cJSON_AddStringToObject(
+            root, "assistant_instruction",
+            "The device clock is not synchronized or the local timezone offset is unknown. Do not guess the current "
+            "time; tell the user the device cannot provide a reliable time yet.");
+    }
+
+    std::string result = _json_string(root);
+    cJSON_Delete(root);
+    return result;
+}
 
 void Hal::xiaozhi_mcp_init()
 {
@@ -23,6 +208,19 @@ void Hal::xiaozhi_mcp_init()
     // System Prompt：
     // You can control the robot's head. Use get_yaw and get_pitch to sense current position. Use set_yaw for horizontal
     // movement and set_pitch for vertical movement. All angles are in degrees.
+
+    mclog::tagInfo(_tag, "add time.get_current tool");
+    mcp_server.AddTool(
+        "self.time.get_current",
+        "Get the device's current clock and local date/time. IMPORTANT: Call this tool before answering any question "
+        "about current time, date, today, tomorrow, tonight, weekday, schedules, deadlines, reminders, or relative "
+        "time such as 'in two hours'. Do not say a guessed time or placeholder time while checking. Do not answer "
+        "time questions from model memory. If ok=false, say the device clock is not synchronized instead of guessing.",
+        std::vector<Property>{}, [this](const PropertyList& properties) -> ReturnValue {
+            auto result = _get_current_time_json();
+            mclog::tagInfo(_tag, "time.get_current: {}", result);
+            return result;
+        });
 
     mclog::tagInfo(_tag, "add robot.get_head_angles tool");
     mcp_server.AddTool("self.robot.get_head_angles",
@@ -225,6 +423,67 @@ void Hal::xiaozhi_mcp_init()
                                                           status.dailyGoalMl, status.remainingGoalMl)
                                             : std::string(R"({"ok": false, "error": "daily goal must be 250-5000 ml."})");
                            mclog::tagInfo(_tag, "water.set_daily_goal: {}", result);
+                           return result;
+                       });
+
+    mclog::tagInfo(_tag, "add location.get_current tool");
+    mcp_server.AddTool(
+        "self.location.get_current",
+        "Get this device's approximate current location. The device uses api.ipify.org to detect its public IP, "
+        "then resolves city-level geolocation on the device and caches it locally. A manually saved location is "
+        "returned unless refresh is true. Set refresh to true only when the user asks to update location or the "
+        "network changed. IP-based accuracy is city-level and may be wrong behind VPN, proxy, carrier-grade NAT, "
+        "cloud, company, or campus networks. If this tool returns ok=false, do not infer the device location from "
+        "the weather default; tell the user location is unavailable.",
+        PropertyList({Property("refresh", kPropertyTypeBoolean, false)}),
+        [this](const PropertyList& properties) -> ReturnValue {
+            bool refresh = properties["refresh"].value<bool>();
+            auto result  = GetHAL().getCurrentLocationJson(refresh);
+            mclog::tagInfo(_tag, "location.get_current refresh={} result_len={}", refresh, result.size());
+            return result;
+        });
+
+    mclog::tagInfo(_tag, "add location.set_manual tool");
+    mcp_server.AddTool(
+        "self.location.set_manual",
+        "Save a user-confirmed device location and update the default weather location. Use this when the user "
+        "corrects the device location, for example says they are in Hangzhou. City alone is accepted and will be "
+        "resolved through the configured QWeather Geo API; latitude and longitude may be supplied directly when "
+        "known.",
+        PropertyList({Property("city", kPropertyTypeString, std::string("")),
+                      Property("latitude", kPropertyTypeString, std::string("")),
+                      Property("longitude", kPropertyTypeString, std::string("")),
+                      Property("region", kPropertyTypeString, std::string("")),
+                      Property("country", kPropertyTypeString, std::string("")),
+                      Property("timezone", kPropertyTypeString, std::string(""))}),
+        [this](const PropertyList& properties) -> ReturnValue {
+            auto city      = properties["city"].value<std::string>();
+            auto latitude  = properties["latitude"].value<std::string>();
+            auto longitude = properties["longitude"].value<std::string>();
+            auto region    = properties["region"].value<std::string>();
+            auto country   = properties["country"].value<std::string>();
+            auto timezone  = properties["timezone"].value<std::string>();
+            auto result = GetHAL().setManualLocationJson(city, latitude, longitude, region, country, timezone);
+            mclog::tagInfo(_tag, "location.set_manual city_len={} result_len={}", city.size(), result.size());
+            return result;
+        });
+
+    mclog::tagInfo(_tag, "add weather.get_current tool");
+    mcp_server.AddTool("self.weather.get_current",
+                       "Get current outdoor weather from QWeather. Use the configured default location when location "
+                       "is empty. For a different place, pass a city name, QWeather LocationID, or longitude,latitude. "
+                       "Use lang like zh/en and unit m/i only when the user asks for a specific language or unit. The "
+                       "API key is stored locally on the device and is never returned.",
+                       PropertyList({Property("location", kPropertyTypeString, std::string("")),
+                                     Property("lang", kPropertyTypeString, std::string("")),
+                                     Property("unit", kPropertyTypeString, std::string(""))}),
+                       [this](const PropertyList& properties) -> ReturnValue {
+                           auto location = properties["location"].value<std::string>();
+                           auto lang     = properties["lang"].value<std::string>();
+                           auto unit     = properties["unit"].value<std::string>();
+                           auto result   = GetHAL().getCurrentWeatherJson(location, lang, unit);
+                           mclog::tagInfo(_tag, "weather.get_current location_len={} result_len={}", location.size(),
+                                          result.size());
                            return result;
                        });
 
