@@ -21,6 +21,7 @@ file(GLOB_RECURSE STACK_CHAN_SOURCES
 list(APPEND STACK_CHAN_SOURCES "hal/hal_weather.cpp")
 list(APPEND STACK_CHAN_SOURCES "hal/hal_location.cpp")
 list(APPEND STACK_CHAN_SOURCES "hal/hal_sound_localizer.cpp")
+list(APPEND STACK_CHAN_SOURCES "hal/hal_memo.cpp")
 set(STACK_CHAN_INCLUDE_DIRS 
     "."
 )

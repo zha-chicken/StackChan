@@ -17,6 +17,7 @@
 #include <stackchan/stackchan.h>
 #include <assets/assets.h>
 #include <assets/lang_config.h>
+#include <hal/board/hal_bridge.h>
 #include <hal/hal.h>
 #include <algorithm>
 
@@ -32,6 +33,10 @@ constexpr uint32_t kCcListeningWidth  = 320;
 constexpr uint32_t kCcListeningHeight = 226;
 constexpr uint32_t kCcStandbyWidth    = 268;
 constexpr uint32_t kCcStandbyHeight   = 240;
+constexpr uint32_t kMemoLongPressMs   = 3000;
+
+uint32_t memo_press_started_ms = 0;
+bool memo_long_press_consumed  = false;
 
 uint32_t fit_image_scale(uint32_t source_width, uint32_t source_height, uint32_t max_width, uint32_t max_height)
 {
@@ -42,6 +47,26 @@ uint32_t fit_image_scale(uint32_t source_width, uint32_t source_height, uint32_t
     const uint32_t width_scale  = max_width * 256 / source_width;
     const uint32_t height_scale = max_height * 256 / source_height;
     return std::max<uint32_t>(1, std::min(width_scale, height_scale));
+}
+
+void memo_panel_event_cb(lv_event_t* event)
+{
+    const auto code = lv_event_get_code(event);
+    if (code == LV_EVENT_PRESSED) {
+        memo_press_started_ms   = GetHAL().millis();
+        memo_long_press_consumed = false;
+        return;
+    }
+    if (code == LV_EVENT_PRESSING && memo_press_started_ms != 0 && !memo_long_press_consumed) {
+        if (GetHAL().millis() - memo_press_started_ms >= kMemoLongPressMs) {
+            memo_long_press_consumed = true;
+            GetHAL().showMemoOverlay();
+        }
+        return;
+    }
+    if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
+        memo_press_started_ms = 0;
+    }
 }
 }  // namespace
 
@@ -276,6 +301,11 @@ void StackChanAvatarDisplay::SetupUI()
     auto avatar = std::make_unique<DefaultAvatar>();
     avatar->init(lv_screen_active());
     avatar->getPanel()->onClick().connect([]() {
+        if (memo_long_press_consumed) {
+            memo_long_press_consumed = false;
+            return;
+        }
+
         static uint32_t last_toggle_tick = 0;
         const uint32_t now               = GetHAL().millis();
         if (last_toggle_tick != 0 && now - last_toggle_tick < 2000) {
@@ -287,6 +317,7 @@ void StackChanAvatarDisplay::SetupUI()
             hal_bridge::toggle_xiaozhi_chat_state();
         }
     });
+    lv_obj_add_event_cb(avatar->getPanel()->get(), memo_panel_event_cb, LV_EVENT_ALL, nullptr);
 
     agent_reading_image_   = assets::get_image("ccreading.png");
     agent_listening_image_ = assets::get_image("cclis.png");
@@ -524,6 +555,11 @@ void StackChanAvatarDisplay::SetChatMessage(const char* role, const char* conten
 
     // ESP_LOGE(TAG, "SetChatMessage: role=%s, content=%s", role ? role : "null", content ? content : "null");
 
+    if (role != nullptr && strcmp(role, "user") == 0) {
+        hal_bridge::set_last_user_message(content ? content : "");
+        return;
+    }
+
     DisplayLockGuard lock(this);
 
     if (strcmp(role, "system") == 0) {
@@ -599,7 +635,6 @@ void StackChanAvatarDisplay::SetTheme(Theme* theme)
     stackchan.avatar().setSpeechTextFont((void*)text_font);
 }
 
-#include <hal/board/hal_bridge.h>
 static bool _is_xiaozhi_ready = false;
 static bool _is_xiaozhi_idle  = false;
 bool hal_bridge::is_xiaozhi_ready()

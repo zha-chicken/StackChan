@@ -194,6 +194,14 @@ struct LocationStatus_t {
     int updatedUnix = 0;
 };
 
+struct MemoItem_t {
+    int id = -1;
+    std::string title;
+    std::string content;
+    int createdUnix = 0;
+    int updatedUnix = 0;
+};
+
 /**
  * @brief
  *
@@ -313,6 +321,15 @@ public:
     std::string setManualLocationJson(std::string_view city, std::string_view latitude = "",
                                       std::string_view longitude = "", std::string_view region = "",
                                       std::string_view country = "", std::string_view timezone = "");
+
+    /* ---------------------------------- Memo ---------------------------------- */
+    std::vector<MemoItem_t> getMemoItems();
+    std::string getMemoListJson();
+    std::string createMemoJson(std::string_view title, std::string_view content);
+    std::string updateMemoJson(int id, std::string_view title = "", std::string_view content = "");
+    std::string deleteMemoJson(int id);
+    std::string clearMemoJson();
+    void showMemoOverlay();
 
     /* ----------------------------------- BLE ---------------------------------- */
     uitk::Signal<const char*> onBleMotionData;

@@ -337,6 +337,71 @@ void Hal::xiaozhi_mcp_init()
                            return result;
                        });
 
+    mclog::tagInfo(_tag, "add memo.list tool");
+    mcp_server.AddTool("self.memo.list",
+                       "List all local memos saved on this device. Use this before answering questions about existing "
+                       "memos or before editing/deleting a memo by id.",
+                       std::vector<Property>{}, [this](const PropertyList& properties) -> ReturnValue {
+                           auto result = GetHAL().getMemoListJson();
+                           mclog::tagInfo(_tag, "memo.list result_len={}", result.size());
+                           return result;
+                       });
+
+    mclog::tagInfo(_tag, "add memo.create tool");
+    mcp_server.AddTool("self.memo.create",
+                       "Create a local memo. Use when the user asks you to remember, note, save, or memo something. "
+                       "IMPORTANT: content must be the exact user-requested memo fact, not your reply, summary, "
+                       "guess, joke, or extra explanation. If the user says '帮我记一下 X', set content to X only.",
+                       PropertyList({Property("title", kPropertyTypeString, std::string("")),
+                                     Property("content", kPropertyTypeString)}),
+                       [this](const PropertyList& properties) -> ReturnValue {
+                           auto title   = properties["title"].value<std::string>();
+                           auto content = properties["content"].value<std::string>();
+                           auto result  = GetHAL().createMemoJson(title, content);
+                           mclog::tagInfo(_tag, "memo.create title_len={} content_len={} result_len={}", title.size(),
+                                          content.size(), result.size());
+                           return result;
+                       });
+
+    mclog::tagInfo(_tag, "add memo.update tool");
+    mcp_server.AddTool("self.memo.update",
+                       "Update an existing local memo by id. Call self.memo.list first if the target id is unknown. "
+                       "Provide title, content, or both. IMPORTANT: content must be the corrected memo fact from the "
+                       "user, not your reply or a paraphrase unless the user explicitly asked you to summarize it.",
+                       PropertyList({Property("id", kPropertyTypeInteger),
+                                     Property("title", kPropertyTypeString, std::string("")),
+                                     Property("content", kPropertyTypeString, std::string(""))}),
+                       [this](const PropertyList& properties) -> ReturnValue {
+                           int id       = properties["id"].value<int>();
+                           auto title   = properties["title"].value<std::string>();
+                           auto content = properties["content"].value<std::string>();
+                           auto result  = GetHAL().updateMemoJson(id, title, content);
+                           mclog::tagInfo(_tag, "memo.update id={} title_len={} content_len={} result_len={}", id,
+                                          title.size(), content.size(), result.size());
+                           return result;
+                       });
+
+    mclog::tagInfo(_tag, "add memo.delete tool");
+    mcp_server.AddTool("self.memo.delete",
+                       "Delete one local memo by id. Call self.memo.list first if the target id is unknown. Use "
+                       "self.memo.clear instead when the user asks to delete or clear all memos.",
+                       PropertyList({Property("id", kPropertyTypeInteger)}),
+                       [this](const PropertyList& properties) -> ReturnValue {
+                           int id      = properties["id"].value<int>();
+                           auto result = GetHAL().deleteMemoJson(id);
+                           mclog::tagInfo(_tag, "memo.delete id={} result_len={}", id, result.size());
+                           return result;
+                       });
+
+    mclog::tagInfo(_tag, "add memo.clear tool");
+    mcp_server.AddTool("self.memo.clear", "Delete all local memos saved on this device. Use only when the user asks "
+                                          "to delete all, clear all, or empty the memo list.",
+                       std::vector<Property>{}, [this](const PropertyList& properties) -> ReturnValue {
+                           auto result = GetHAL().clearMemoJson();
+                           mclog::tagInfo(_tag, "memo.clear result_len={}", result.size());
+                           return result;
+                       });
+
     mclog::tagInfo(_tag, "add water.get_status tool");
     mcp_server.AddTool("self.water.get_status",
                        "Get local water monitor status from the Mini Scales connected to Port A. Call this at the "

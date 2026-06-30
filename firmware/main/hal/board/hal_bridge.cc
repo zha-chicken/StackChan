@@ -11,6 +11,7 @@
 #include <nvs_flash.h>
 #include <driver/gpio.h>
 #include <esp_event.h>
+#include <esp_timer.h>
 #include <application.h>
 #include <board.h>
 #include <display.h>
@@ -34,6 +35,8 @@ namespace hal_bridge {
 
 static std::mutex _mutex;
 static Data_t _data;
+static std::string _last_user_message;
+static int64_t _last_user_message_ms = 0;
 
 void lock()
 {
@@ -74,6 +77,28 @@ void set_xiaozhi_mode(bool mode)
 {
     std::lock_guard<std::mutex> lock(_mutex);
     _data.isXiaozhiMode = mode;
+}
+
+void set_last_user_message(std::string_view message)
+{
+    std::lock_guard<std::mutex> lock(_mutex);
+    _last_user_message.assign(message.data(), message.size());
+    _last_user_message_ms = esp_timer_get_time() / 1000;
+}
+
+std::string get_recent_user_message(uint32_t max_age_ms)
+{
+    std::lock_guard<std::mutex> lock(_mutex);
+    if (_last_user_message.empty() || _last_user_message_ms <= 0) {
+        return "";
+    }
+
+    const int64_t now_ms = esp_timer_get_time() / 1000;
+    const int64_t age_ms = now_ms - _last_user_message_ms;
+    if (age_ms < 0 || age_ms > static_cast<int64_t>(max_age_ms)) {
+        return "";
+    }
+    return _last_user_message;
 }
 
 /* -------------------------------------------------------------------------- */
